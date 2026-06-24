@@ -1,34 +1,20 @@
 #include "Vault.hpp"
 
+#include <utility>
+
 Vault::Vault(void) {}
 
-Vault::Vault(const Vault& other)
-    :_entry(other._entry) {}
-
-Vault&  Vault::operator=(const Vault& other)
+void    Vault::addEntry(Entry&& entry)
 {
-    if(this != &other)
-        _entry = other._entry;
-
-    return *this;
-}
-
-Vault::~Vault() 
-{
-    for (size_t i = 0; i < _entry.size(); i++)
-        _entry[i].eraseField();
-}
-
-void    Vault::addEntry(Entry& entry)
-{
-    _entry.push_back(entry);
+    _entry.push_back(std::move(entry));
 }
 
 bool    Vault::removeEntry(size_t index)
 {
     if(index >= _entry.size())
         return false;
-    
+
+    _entry[index].eraseField();
     _entry.erase(_entry.begin() + index);
     return true;
 }

@@ -12,11 +12,11 @@ private:
 
 public:
     Vault(void);
-    Vault(const Vault& other);
-    Vault&  operator=(const Vault& other);
-    ~Vault();
+    Vault(const Vault& other) = delete;
+    Vault&  operator=(const Vault& other) = delete;
+    ~Vault() = default;
 
-    void        addEntry(Entry& entry);
+    void        addEntry(Entry&& entry);
     bool        removeEntry(size_t index);
     void        printAll(void) const;
     std::string serialize(void) const;

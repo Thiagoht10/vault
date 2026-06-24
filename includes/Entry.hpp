@@ -13,9 +13,12 @@ private:
 
 public:
     Entry(void);
-    Entry(std::string svc, std::string usr, std::string pass);
-    Entry(const Entry& other);
-    Entry&  operator=(const Entry& other);
+    Entry(const std::string& svc, const std::string& usr,
+        const std::string& pass);
+    Entry(const Entry& other) = delete;
+    Entry&  operator=(const Entry& other) = delete;
+    Entry(Entry&& other) noexcept;
+    Entry&  operator=(Entry&& other) noexcept;
     ~Entry();
 
     void    setService(const std::string& service);

@@ -3,19 +3,25 @@
 
 Entry::Entry(void) {}
 
-Entry::Entry(std::string svc, std::string usr, std::string pass)
+Entry::Entry(const std::string& svc, const std::string& usr,
+    const std::string& pass)
     :_service(svc), _username(usr), _password(pass) {}
 
-Entry::Entry(const Entry& other)
-    :_service(other._service), _username(other._username), _password(other._password) {}
+Entry::Entry(Entry&& other) noexcept
+{
+    _service.swap(other._service);
+    _username.swap(other._username);
+    _password.swap(other._password);
+}
 
-Entry&  Entry::operator=(const Entry& other)
+Entry&  Entry::operator=(Entry&& other) noexcept
 {
     if(this != &other)
     {
-        _service = other._service;
-        _username = other._username;
-        _password = other._password;
+        eraseField();
+        _service.swap(other._service);
+        _username.swap(other._username);
+        _password.swap(other._password);
     }
     return (*this);
 }

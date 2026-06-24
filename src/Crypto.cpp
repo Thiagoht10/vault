@@ -8,6 +8,24 @@ Crypto::Crypto()
 
 Crypto::~Crypto() {}
 
+Crypto::SecureKey::SecureKey(void)
+	: _bytes() {}
+
+Crypto::SecureKey::~SecureKey()
+{
+	sodium_memzero(_bytes.data(), _bytes.size());
+}
+
+unsigned char*	Crypto::SecureKey::data(void)
+{
+	return _bytes.data();
+}
+
+std::size_t	Crypto::SecureKey::size(void) const
+{
+	return _bytes.size();
+}
+
 std::string Crypto::generateSalt(void)
 {
     std::string salt;
@@ -28,15 +46,13 @@ std::string Crypto::generateNonce(void)
     return nonce;
 }
 
-std::string	Crypto::deriveKey(const std::string& masterPassword,
-		const std::string& salt, unsigned long long opsLimit,
-		std::size_t memLimit, int algorithm) const
+void	Crypto::deriveKey(SecureKey& key,
+			const std::string& masterPassword,
+			const std::string& salt, unsigned long long opsLimit,
+			std::size_t memLimit, int algorithm) const
 {
-	std::string	key;
-
-	key.resize(crypto_secretbox_KEYBYTES);
 	if (crypto_pwhash(
-			reinterpret_cast<unsigned char*>(&key[0]),
+			key.data(),
 			key.size(),
 			masterPassword.c_str(),
 			masterPassword.size(),
@@ -47,14 +63,13 @@ std::string	Crypto::deriveKey(const std::string& masterPassword,
 	{
 		throw std::runtime_error("failed to derive key");
 	}
-	return key;
 }
 
 EncryptedData	Crypto::encrypt(const std::string& plaintext,
 	    const std::string& masterPassword)
 {
 	EncryptedData	data;
-	std::string		key;
+	SecureKey		key;
 
 	data.version = 1;
 	data.algorithm = crypto_pwhash_ALG_DEFAULT;
@@ -64,7 +79,8 @@ EncryptedData	Crypto::encrypt(const std::string& plaintext,
 	data.salt = generateSalt();
 	data.nonce = generateNonce();
 
-	key = deriveKey(masterPassword,
+	deriveKey(key,
+			masterPassword,
 			data.salt,
 			data.opsLimit,
 			data.memLimit,
@@ -77,20 +93,18 @@ EncryptedData	Crypto::encrypt(const std::string& plaintext,
 			reinterpret_cast<const unsigned char*>(plaintext.data()),
 			plaintext.size(),
 			reinterpret_cast<const unsigned char*>(data.nonce.data()),
-			reinterpret_cast<const unsigned char*>(key.data())) != 0)
+			key.data()) != 0)
 	{
-		sodium_memzero(&key[0], key.size());
 		throw std::runtime_error("failed to encrypt data");
 	}
 
-	sodium_memzero(&key[0], key.size());
 	return data;
 }
 
 std::string	Crypto::decrypt(const EncryptedData& data,
 	    const std::string& masterPassword)
 {
-	std::string	key;
+	SecureKey	key;
 	std::string	plaintext;
 
 	if (data.salt.size() != crypto_pwhash_SALTBYTES)
@@ -102,7 +116,8 @@ std::string	Crypto::decrypt(const EncryptedData& data,
 	if (data.ciphertext.size() < crypto_secretbox_MACBYTES)
 		throw std::runtime_error("invalid ciphertext size");
 
-	key = deriveKey(masterPassword,
+	deriveKey(key,
+			masterPassword,
 			data.salt,
 			data.opsLimit,
 			data.memLimit,
@@ -115,12 +130,10 @@ std::string	Crypto::decrypt(const EncryptedData& data,
 			reinterpret_cast<const unsigned char*>(data.ciphertext.data()),
 			data.ciphertext.size(),
 			reinterpret_cast<const unsigned char*>(data.nonce.data()),
-			reinterpret_cast<const unsigned char*>(key.data())) != 0)
+			key.data()) != 0)
 	{
-		sodium_memzero(&key[0], key.size());
 		throw std::runtime_error("wrong password or corrupted file");
 	}
 
-	sodium_memzero(&key[0], key.size());
 	return plaintext;
 }

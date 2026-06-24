@@ -1,6 +1,7 @@
 #ifndef CRYPTO_HPP
 #define CRYPTO_HPP
 
+#include <array>
 #include <sodium.h>
 #include <stdexcept>
 #include <string>
@@ -19,9 +20,25 @@ struct EncryptedData
 class Crypto
 {
 private:
+    class SecureKey
+    {
+    private:
+        std::array<unsigned char, crypto_secretbox_KEYBYTES> _bytes;
+
+        SecureKey(const SecureKey& other);
+        SecureKey&  operator=(const SecureKey& other);
+
+    public:
+        SecureKey(void);
+        ~SecureKey();
+
+        unsigned char*  data(void);
+        std::size_t     size(void) const;
+    };
+
     std::string generateSalt(void);
     std::string generateNonce(void);
-    std::string	deriveKey(const std::string& masterPassword,
+    void	deriveKey(SecureKey& key, const std::string& masterPassword,
             const std::string& salt, unsigned long long opsLimit,
             std::size_t memLimit, int algorithm) const;
 

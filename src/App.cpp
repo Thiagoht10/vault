@@ -1,6 +1,8 @@
 #include "App.hpp"
 #include "SecureMemory.hpp"
 
+#include <utility>
+
 App::App(void) {}
 
 App::~App() 
@@ -20,6 +22,7 @@ void    App::add(void)
 {
     Entry   entry;
     std::string tmp;
+    SecureEraseGuard tmpGuard(tmp);
     size_t  count = 0;
 
     std::cout << "\n" << "------------------" << "\n" << std::endl;
@@ -36,7 +39,7 @@ void    App::add(void)
             continue ;
         }
         entry.setService(tmp);
-        tmp.clear();
+        secureErase(tmp);
         count++;
         break;
     }
@@ -52,7 +55,7 @@ void    App::add(void)
             continue ;
         }
         entry.setUsername(tmp);
-        tmp.clear();
+        secureErase(tmp);
         count++;
         break;
     }
@@ -68,11 +71,11 @@ void    App::add(void)
             continue ;
         }
         entry.setPassword(tmp);
-        tmp.clear();
+        secureErase(tmp);
         count++;
         break;
     }
-    _vault.addEntry(entry);
+    _vault.addEntry(std::move(entry));
 }
 
 void    App::show(void)
