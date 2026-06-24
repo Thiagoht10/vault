@@ -5,6 +5,7 @@
 #include "Entry.hpp"
 #include "FileManeger.hpp"
 #include "Vault.hpp"
+#include "TerminalEchoGuard.hpp"
 
 class App
 {
@@ -20,6 +21,7 @@ private:
     void    show(void);
     void    del(void);
     void    erasePassword(void);
+    std::string readHiddenInput(std::string prompt);
 
 public:
     App(void);

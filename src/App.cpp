@@ -136,6 +136,20 @@ void    App::erasePassword(void)
     secureErase(_masterPassword);
 }
 
+std::string App::readHiddenInput(std::string prompt)
+{
+    std::string password;
+
+    std::cout << prompt << "\n" << "> ";
+
+    TerminalEchoGuard guard;
+
+    if (!std::getline(std::cin, password))
+        throw std::runtime_error("failure to read input");
+
+    return password;
+}
+
 void    App::run(int argc, char *argv[])
 {
     EncryptedData data;
@@ -143,11 +157,7 @@ void    App::run(int argc, char *argv[])
     SecureEraseGuard plaintextGuard(plaintext);
 
     parseArgs(argc, argv);
-    std::cout << "Please, put your password\n" << "> ";
-    if (!std::getline(std::cin, _masterPassword))
-    {
-        throw std::runtime_error("invalid password");
-    }
+    _masterPassword = readHiddenInput("please, put your password");
     if (_fileManeger.ifExist())
     {
         data = _fileManeger.readEncrypted();

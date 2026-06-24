@@ -13,11 +13,13 @@ Gerenciador de senhas executado no terminal e escrito em C++. As credenciais sã
 - salvar o cofre automaticamente ao encerrar pelo menu;
 - detectar senha incorreta ou arquivo corrompido durante a descriptografia;
 - rejeitar dados serializados que não estejam no formato esperado;
+- ocultar a senha mestra durante a digitação;
 - sobrescrever buffers sensíveis conhecidos antes de liberá-los.
 
 ## Requisitos
 
 - compilador C++ com suporte a `std::filesystem`;
+- terminal compatível com POSIX `termios`;
 - `make`;
 - libsodium e seus arquivos de desenvolvimento.
 
@@ -51,7 +53,7 @@ Passe como argumento o caminho do arquivo que armazenará o cofre:
 ./vault meu_cofre.vault
 ```
 
-O programa solicita a senha mestra e apresenta o menu:
+O programa solicita a senha mestra sem exibi-la durante a digitação e apresenta o menu:
 
 ```text
 1. add
@@ -120,6 +122,12 @@ A senha mestra é limpa no destrutor de `App`. Cada credencial é limpa por `Ent
 
 As chaves derivadas usam a classe privada `Crypto::SecureKey`, que contém um buffer fixo, não pode ser copiada e executa `sodium_memzero()` no destrutor. Assim, a chave é apagada tanto no fluxo normal quanto se ocorrer uma exceção.
 
+### Leitura da senha mestra
+
+`App::readHiddenInput()` usa `TerminalEchoGuard` para desativar temporariamente o eco do terminal antes de ler a senha mestra. O guard salva as configurações originais e as restaura em seu destrutor, inclusive quando a leitura lança uma exceção.
+
+Essa proteção é aplicada à senha mestra solicitada na inicialização. Os demais campos inseridos pelo menu continuam visíveis durante a digitação.
+
 ### Movimentação das entradas
 
 `Entry` e `Vault` não podem ser copiados. Uma entrada é transferida para o `Vault` com semântica de movimento:
@@ -140,6 +148,7 @@ O construtor e o operador de movimento são `noexcept`, permitindo que o vetor m
 │   ├── Entry.hpp
 │   ├── FileManeger.hpp
 │   ├── SecureMemory.hpp
+│   ├── TerminalEchoGuard.hpp
 │   └── Vault.hpp
 ├── src/
 │   ├── App.cpp
@@ -147,6 +156,7 @@ O construtor e o operador de movimento são `noexcept`, permitindo que o vetor m
 │   ├── Entry.cpp
 │   ├── FileManeger.cpp
 │   ├── SecureMemory.cpp
+│   ├── TerminalEchoGuard.cpp
 │   └── Vault.cpp
 ├── main.cpp
 └── Makefile
@@ -158,10 +168,11 @@ O construtor e o operador de movimento são `noexcept`, permitindo que o vetor m
 - `Crypto`: deriva a chave, criptografa e descriptografa;
 - `FileManeger`: lê e escreve o formato binário do cofre.
 - `SecureMemory`: fornece limpeza com `sodium_memzero()` e proteção RAII para strings sensíveis.
+- `TerminalEchoGuard`: desativa temporariamente o eco do terminal e restaura sua configuração por RAII.
 
 ## Limitações de segurança
 
-- a senha mestra é exibida enquanto é digitada no terminal;
+- as senhas das credenciais adicionadas pelo menu ainda são exibidas durante a digitação;
 - a opção `show` imprime todas as senhas em texto legível;
 - senha mestra, credenciais e texto serializado ainda utilizam `std::string`; `sodium_memzero()` apaga o buffer atual, mas não recupera buffers antigos que uma realocação da string possa ter abandonado;
 - os dados sensíveis ainda não usam memória protegida por `sodium_malloc()` ou `sodium_mlock()`, podendo ser afetados por swap ou core dumps;
