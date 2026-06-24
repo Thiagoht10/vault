@@ -1,5 +1,7 @@
 #include "FileManeger.hpp"
 
+FileManeger::FileManeger() {}
+
 FileManeger::FileManeger(const std::string pathname) 
     :_path(pathname) {}
 
@@ -110,4 +112,9 @@ void	FileManeger::writeEncrypted(const EncryptedData& data)
 bool    FileManeger::ifExist(void) const
 {
     return std::filesystem::exists(_path);
+}
+
+void	FileManeger::setPath(const std::string pathname)
+{
+	_path = pathname;
 }

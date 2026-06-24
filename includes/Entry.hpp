@@ -26,6 +26,8 @@ public:
     const std::string& getUsername(void) const;
     const std::string& getPassword(void) const;
 
+    void    eraseField(void);
+
     void    print(void) const;
 };
 

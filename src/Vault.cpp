@@ -13,7 +13,11 @@ Vault&  Vault::operator=(const Vault& other)
     return *this;
 }
 
-Vault::~Vault() {}
+Vault::~Vault() 
+{
+    for (size_t i = 0; i < _entry.size(); i++)
+        _entry[i].eraseField();
+}
 
 void    Vault::addEntry(Entry& entry)
 {
@@ -22,7 +26,7 @@ void    Vault::addEntry(Entry& entry)
 
 bool    Vault::removeEntry(size_t index)
 {
-    if(index > _entry.size())
+    if(index >= _entry.size())
         return false;
     
     _entry.erase(_entry.begin() + index);
@@ -36,13 +40,14 @@ void    Vault::printAll(void) const
     size = _entry.size();
     if(size == 0)
     {
-        std::cout << "Nothing to print" << std::endl;
+        std::cout << "\nNothing to print\n" << std::endl;
         return ;
     }
     
     std::cout << "\n";
     for (size_t i = 0; i < size; i++)
     {
+        std::cout << "[" << i << "]" << std::endl;
         _entry[i].print();
         std::cout << "\n" << "------------------" << "\n" << std::endl;
     }

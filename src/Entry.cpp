@@ -1,7 +1,7 @@
 #include "Entry.hpp"
+#include "SecureMemory.hpp"
 
-Entry::Entry(void)
-    :_service("none"), _username("none"), _password("none") {}
+Entry::Entry(void) {}
 
 Entry::Entry(std::string svc, std::string usr, std::string pass)
     :_service(svc), _username(usr), _password(pass) {}
@@ -20,7 +20,10 @@ Entry&  Entry::operator=(const Entry& other)
     return (*this);
 }
 
-Entry::~Entry() {}
+Entry::~Entry()
+{
+    eraseField();
+}
 
 void    Entry::setService(const std::string& service)
 {
@@ -50,6 +53,13 @@ const std::string& Entry::getUsername(void) const
 const std::string& Entry::getPassword(void) const
 {
     return (_password);
+}
+
+void    Entry::eraseField(void)
+{
+    secureErase(_password);
+    secureErase(_username);
+    secureErase(_service);
 }
 
 void    Entry::print(void) const
