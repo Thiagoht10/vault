@@ -53,7 +53,7 @@ void    App::add(void)
     {
         if (cancel)
             break;
-        std::cout << "Username: \n";
+        std::cout << "Username: \n" << "> ";
         if (!std::getline(std::cin, tmp))
             return ;
         if (tmp.empty())
@@ -75,7 +75,7 @@ void    App::add(void)
     {
         if (cancel)
             break;
-        std::cout << "Password: \n";
+        std::cout << "Password: \n" << "> ";
         if (!std::getline(std::cin, tmp))
             return ;
         if (tmp.empty())
