@@ -67,7 +67,8 @@ void    Vault::printAll(void) const
     {
         std::cout << "[" << i << "]" << std::endl;
         _entry[i].print();
-        std::cout << "\n" << "------------------" << "\n" << std::endl;
+        if (i > 0)
+            std::cout << "\n" << "------------------" << "\n" << std::endl;
     }
 }
 

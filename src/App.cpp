@@ -22,11 +22,12 @@ void    App::add(void)
 {
     Entry   entry;
     std::string tmp;
+    bool cancel = false;
     SecureEraseGuard tmpGuard(tmp);
-    size_t  count = 0;
 
     std::cout << "\n" << "------------------" << "\n" << std::endl;
-    std::cout << "please, insert datas:\n" << std::endl;
+    std::cout << "please, insert datas:" << std::endl;
+    std::cout << "type /cancel to cancel\n" << std::endl;
 
     while(1)
     {
@@ -38,14 +39,20 @@ void    App::add(void)
             std::cout << "Can't have empyt inputs\n" << std::endl;
             continue ;
         }
+        if(tmp == "/cancel")
+        {
+            cancel = true;
+            break;
+        }
         entry.setService(tmp);
         secureErase(tmp);
-        count++;
         break;
     }
 
     while (1)
     {
+        if (cancel)
+            break;
         std::cout << "Username: \n";
         if (!std::getline(std::cin, tmp))
             return ;
@@ -54,14 +61,20 @@ void    App::add(void)
             std::cout << "Can't have empyt inputs\n" << std::endl;
             continue ;
         }
+        if(tmp == "/cancel")
+        {
+            cancel = true;
+            break;
+        }
         entry.setUsername(tmp);
         secureErase(tmp);
-        count++;
         break;
     }
     
     while (1)
     {
+        if (cancel)
+            break;
         std::cout << "Password: \n";
         if (!std::getline(std::cin, tmp))
             return ;
@@ -70,12 +83,17 @@ void    App::add(void)
             std::cout << "Can't have empyt inputs\n" << std::endl;
             continue ;
         }
+        if(tmp == "/cancel")
+        {
+            cancel = true;
+            break;
+        }
         entry.setPassword(tmp);
         secureErase(tmp);
-        count++;
         break;
     }
-    _vault.addEntry(std::move(entry));
+    if (!cancel)
+        _vault.addEntry(std::move(entry));
 }
 
 void    App::show(void)
@@ -91,14 +109,17 @@ void    App::del(void)
 
     while (1)
     {
-        std::cout << "please, select an index\n" << std::endl;
+        std::cout << "please, select an index" << std::endl;
+        std::cout << "type /cancel to cancel\n" << std::endl;
 
         if (!std::getline(std::cin, input))
+            return;
+        if(input == "/cancel")
             return;
         ss << input;
         for (int i = 0; input[i]; i++)
         {
-            if(input[i] <= '0' && input[i] >= '9')
+            if(input[i] < '0' || input[i] > '9')
             {
                 std::cout << "invalid index\n" << std::endl;
                 continue;
