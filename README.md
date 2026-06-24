@@ -1,59 +1,59 @@
 # Vault
 
-Gerenciador de senhas executado no terminal e escrito em C++. As credenciais são mantidas em memória durante a execução e salvas em um arquivo binário criptografado com a biblioteca [libsodium](https://doc.libsodium.org/).
+A terminal-based password manager written in C++. Credentials are kept in memory while the program is running and saved to a binary file encrypted with the [libsodium](https://doc.libsodium.org/) library.
 
-> Este é um projeto de estudo. Antes de utilizá-lo para armazenar credenciais reais, consulte a seção [Limitações de segurança](#limitações-de-segurança).
+> This is an educational project. Before using it to store real credentials, read the [Security limitations](#security-limitations) section.
 
-## Funcionalidades
+## Features
 
-- adicionar uma credencial com serviço, usuário e senha;
-- listar as credenciais armazenadas;
-- remover uma credencial pelo índice;
-- carregar um cofre criptografado existente;
-- salvar o cofre automaticamente ao encerrar pelo menu;
-- detectar senha incorreta ou arquivo corrompido durante a descriptografia;
-- rejeitar dados serializados que não estejam no formato esperado;
-- ocultar a senha mestra durante a digitação;
-- sobrescrever buffers sensíveis conhecidos antes de liberá-los.
+- add a credential with a service, username, and password;
+- list stored credentials;
+- delete a credential by index;
+- load an existing encrypted vault;
+- save the vault automatically when exiting through the menu;
+- detect an incorrect password or corrupted file during decryption;
+- reject serialized data that does not match the expected format;
+- hide the master password while it is being entered;
+- overwrite known sensitive buffers before releasing them.
 
-## Requisitos
+## Requirements
 
-- compilador C++ com suporte a `std::filesystem`;
-- terminal compatível com POSIX `termios`;
+- a C++ compiler with `std::filesystem` support;
+- a terminal compatible with POSIX `termios`;
 - `make`;
-- libsodium e seus arquivos de desenvolvimento.
+- libsodium and its development files.
 
-Em distribuições baseadas em Debian ou Ubuntu, as dependências podem ser instaladas com:
+On Debian- or Ubuntu-based distributions, the dependencies can be installed with:
 
 ```sh
 sudo apt install build-essential libsodium-dev
 ```
 
-## Compilação
+## Building
 
 ```sh
 make
 ```
 
-O comando gera o executável `vault` na raiz do projeto.
+This command generates the `vault` executable in the project root.
 
-Outros alvos disponíveis:
-
-```sh
-make clean   # remove os arquivos objeto
-make fclean  # remove os objetos e o executável
-make re      # recompila todo o projeto
-```
-
-## Uso
-
-Passe como argumento o caminho do arquivo que armazenará o cofre:
+Other available targets:
 
 ```sh
-./vault meu_cofre.vault
+make clean   # remove object files
+make fclean  # remove object files and the executable
+make re      # rebuild the entire project
 ```
 
-O programa solicita a senha mestra sem exibi-la durante a digitação e apresenta o menu:
+## Usage
+
+Pass the path of the file that will store the vault as an argument:
+
+```sh
+./vault my_vault.vault
+```
+
+The program prompts for the master password without displaying it while it is being entered, then shows the menu:
 
 ```text
 1. add
@@ -62,83 +62,83 @@ O programa solicita a senha mestra sem exibi-la durante a digitação e apresent
 4. exit
 ```
 
-Se o arquivo informado já existir, ele será lido e descriptografado com a senha mestra. Se não existir, um cofre novo será criado quando o programa for encerrado pela opção `4`.
+If the specified file already exists, it is read and decrypted with the master password. If it does not exist, a new vault is created when the program is closed using option `4`.
 
-O mesmo arquivo deve ser aberto posteriormente com a mesma senha. Uma senha diferente — ou alterações nos bytes criptografados — causa o erro `wrong password or corrupted file`.
+The same file must later be opened with the same password. A different password—or changes to the encrypted bytes—causes the `wrong password or corrupted file` error.
 
-## Como funciona
+## How it works
 
-Ao abrir um cofre, os dados percorrem este fluxo:
+When a vault is opened, the data follows this flow:
 
 ```text
-arquivo binário
+binary file
     -> FileManeger::readEncrypted()
     -> EncryptedData
     -> Crypto::decrypt()
-    -> texto serializado
+    -> serialized text
     -> Vault::deserialize()
-    -> lista de Entry
+    -> list of Entry objects
 ```
 
-Ao encerrar, o processo é invertido:
+When the program exits, the process is reversed:
 
 ```text
-lista de Entry
+list of Entry objects
     -> Vault::serialize()
-    -> texto serializado
+    -> serialized text
     -> Crypto::encrypt()
     -> EncryptedData
     -> FileManeger::writeEncrypted()
-    -> arquivo binário
+    -> binary file
 ```
 
-`Vault::serialize()` calcula o tamanho necessário, reserva o buffer uma única vez e acrescenta os campos diretamente nele. `Vault::deserialize()` percorre esse mesmo buffer por posições, sem criar uma cópia completa em `stringstream` nem usar `substr()` para cada campo.
+`Vault::serialize()` calculates the required size, allocates the buffer only once, and appends the fields directly to it. `Vault::deserialize()` traverses the same buffer by position, without creating a complete copy in a `stringstream` or using `substr()` for each field.
 
-### Estrutura `EncryptedData`
+### `EncryptedData` structure
 
-`EncryptedData` agrupa o conteúdo criptografado e os parâmetros necessários para recuperá-lo:
+`EncryptedData` groups the encrypted content and the parameters required to recover it:
 
-| Campo | Finalidade |
+| Field | Purpose |
 | --- | --- |
-| `version` | identifica a versão do formato |
-| `algorithm` | algoritmo usado para derivar a chave |
-| `opsLimit` | custo computacional da derivação da chave |
-| `memLimit` | memória usada na derivação da chave |
-| `salt` | valor aleatório usado com a senha mestra |
-| `nonce` | valor único usado na operação criptográfica |
-| `ciphertext` | credenciais criptografadas e autenticadas |
+| `version` | identifies the format version |
+| `algorithm` | algorithm used to derive the key |
+| `opsLimit` | computational cost of key derivation |
+| `memLimit` | memory used during key derivation |
+| `salt` | random value used with the master password |
+| `nonce` | unique value used in the cryptographic operation |
+| `ciphertext` | encrypted and authenticated credentials |
 
-O `salt` e o `nonce` não são senhas e podem ser armazenados no arquivo. A senha mestra não é gravada. Ela é usada com o `salt` para derivar temporariamente a chave de criptografia.
+The `salt` and `nonce` are not passwords and can be stored in the file. The master password is not written to disk. It is used with the `salt` to derive the encryption key temporarily.
 
-O projeto utiliza `crypto_pwhash` para derivação da chave e `crypto_secretbox_easy`/`crypto_secretbox_open_easy` para criptografia autenticada.
+The project uses `crypto_pwhash` for key derivation and `crypto_secretbox_easy`/`crypto_secretbox_open_easy` for authenticated encryption.
 
-### Limpeza de dados sensíveis
+### Clearing sensitive data
 
-O projeto centraliza a limpeza de strings em `secureErase()`. Essa função usa `sodium_memzero()` para sobrescrever os bytes atuais e depois chama `clear()` para deixar a string logicamente vazia.
+The project centralizes string clearing in `secureErase()`. This function uses `sodium_memzero()` to overwrite the current bytes and then calls `clear()` to leave the string logically empty.
 
-`SecureEraseGuard` aplica essa limpeza por RAII: seu destrutor é executado ao final do escopo, inclusive durante o tratamento de exceções. Ele protege os dados temporários coletados ao adicionar uma entrada e o texto completo produzido pela descriptografia e serialização.
+`SecureEraseGuard` applies this clearing through RAII: its destructor runs when the scope ends, including during exception handling. It protects the temporary data collected when an entry is added and the complete text produced by decryption and serialization.
 
-A senha mestra é limpa no destrutor de `App`. Cada credencial é limpa por `Entry::~Entry()`, chamado automaticamente pelo `std::vector` quando uma entrada é removida ou quando o `Vault` é destruído.
+The master password is cleared in the `App` destructor. Each credential is cleared by `Entry::~Entry()`, which is called automatically by the `std::vector` when an entry is removed or the `Vault` is destroyed.
 
-As chaves derivadas usam a classe privada `Crypto::SecureKey`, que contém um buffer fixo, não pode ser copiada e executa `sodium_memzero()` no destrutor. Assim, a chave é apagada tanto no fluxo normal quanto se ocorrer uma exceção.
+Derived keys use the private `Crypto::SecureKey` class, which contains a fixed-size buffer, cannot be copied, and calls `sodium_memzero()` in its destructor. This ensures that the key is erased both during normal execution and when an exception occurs.
 
-### Leitura da senha mestra
+### Reading the master password
 
-`App::readHiddenInput()` usa `TerminalEchoGuard` para desativar temporariamente o eco do terminal antes de ler a senha mestra. O guard salva as configurações originais e as restaura em seu destrutor, inclusive quando a leitura lança uma exceção.
+`App::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading the master password. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
 
-Essa proteção é aplicada à senha mestra solicitada na inicialização. Os demais campos inseridos pelo menu continuam visíveis durante a digitação.
+This protection is applied to the master password requested during initialization. The other fields entered through the menu remain visible while they are being typed.
 
-### Movimentação das entradas
+### Moving entries
 
-`Entry` e `Vault` não podem ser copiados. Uma entrada é transferida para o `Vault` com semântica de movimento:
+`Entry` and `Vault` cannot be copied. An entry is transferred to the `Vault` using move semantics:
 
 ```text
-Entry temporário -> std::move -> std::vector<Entry>
+temporary Entry -> std::move -> std::vector<Entry>
 ```
 
-O construtor e o operador de movimento são `noexcept`, permitindo que o vetor mova entradas durante realocações em vez de copiar as credenciais. Antes de remover ou sobrescrever uma entrada, seus campos são apagados com `secureErase()`.
+The move constructor and move assignment operator are `noexcept`, allowing the vector to move entries during reallocations instead of copying the credentials. Before an entry is removed or overwritten, its fields are erased with `secureErase()`.
 
-## Organização do projeto
+## Project structure
 
 ```text
 .
@@ -162,22 +162,22 @@ O construtor e o operador de movimento são `noexcept`, permitindo que o vetor m
 └── Makefile
 ```
 
-- `App`: controla argumentos, senha mestra e menu interativo;
-- `Entry`: representa uma credencial;
-- `Vault`: mantém as credenciais e converte entre objetos e texto;
-- `Crypto`: deriva a chave, criptografa e descriptografa;
-- `FileManeger`: lê e escreve o formato binário do cofre.
-- `SecureMemory`: fornece limpeza com `sodium_memzero()` e proteção RAII para strings sensíveis.
-- `TerminalEchoGuard`: desativa temporariamente o eco do terminal e restaura sua configuração por RAII.
+- `App`: handles arguments, the master password, and the interactive menu;
+- `Entry`: represents a credential;
+- `Vault`: stores credentials and converts between objects and text;
+- `Crypto`: derives the key, encrypts, and decrypts;
+- `FileManeger`: reads and writes the vault's binary format;
+- `SecureMemory`: provides clearing with `sodium_memzero()` and RAII protection for sensitive strings;
+- `TerminalEchoGuard`: temporarily disables terminal echo and restores its configuration through RAII.
 
-## Limitações de segurança
+## Security limitations
 
-- as senhas das credenciais adicionadas pelo menu ainda são exibidas durante a digitação;
-- a opção `show` imprime todas as senhas em texto legível;
-- senha mestra, credenciais e texto serializado ainda utilizam `std::string`; `sodium_memzero()` apaga o buffer atual, mas não recupera buffers antigos que uma realocação da string possa ter abandonado;
-- os dados sensíveis ainda não usam memória protegida por `sodium_malloc()` ou `sodium_mlock()`, podendo ser afetados por swap ou core dumps;
-- o formato binário utiliza tipos e representação nativos da máquina, portanto ainda não é portátil entre todas as arquiteturas;
-- não existe confirmação da senha ao criar um cofre novo;
-- não há bloqueio contra tentativas repetidas de senha.
+- passwords for credentials added through the menu are still displayed while they are being entered;
+- the `show` option prints all passwords as readable text;
+- the master password, credentials, and serialized text still use `std::string`; `sodium_memzero()` erases the current buffer but cannot recover old buffers that a string reallocation may have abandoned;
+- sensitive data does not yet use memory protected by `sodium_malloc()` or `sodium_mlock()` and may therefore be affected by swap or core dumps;
+- the binary format uses the machine's native types and representation, so it is not portable across all architectures;
+- there is no password confirmation when creating a new vault;
+- there is no protection against repeated password attempts.
 
-Use o projeto como implementação educacional, não como substituto de um gerenciador de senhas auditado.
+Use this project as an educational implementation, not as a replacement for an audited password manager.
