@@ -1,8 +1,8 @@
 #ifndef VAULT_HPP
 #define VAULT_HPP
 
+#include <string>
 #include <vector>
-#include <sstream>
 #include "Entry.hpp"
 
 class Vault
@@ -19,8 +19,8 @@ public:
     void        addEntry(Entry&& entry);
     bool        removeEntry(size_t index);
     void        printAll(void) const;
-    std::string serialize(void) const;
-    void        deserialize(std::string& data);
+    void        serialize(std::string& data) const;
+    void        deserialize(const std::string& data);
 };
 
 #endif

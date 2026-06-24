@@ -33,17 +33,38 @@ Entry::~Entry()
 
 void    Entry::setService(const std::string& service)
 {
+    secureErase(_service);
     _service = service;
 }
 
 void    Entry::setUsername(const std::string& login)
 {
+    secureErase(_username);
     _username = login;
 }
 
 void    Entry::setPassword(const std::string& password)
 {
+    secureErase(_password);
     _password = password;
+}
+
+void    Entry::setService(const char *service, std::size_t length)
+{
+    secureErase(_service);
+    _service.assign(service, length);
+}
+
+void    Entry::setUsername(const char *username, std::size_t length)
+{
+    secureErase(_username);
+    _username.assign(username, length);
+}
+
+void    Entry::setPassword(const char *password, std::size_t length)
+{
+    secureErase(_password);
+    _password.assign(password, length);
 }
 
 const std::string& Entry::getService(void) const

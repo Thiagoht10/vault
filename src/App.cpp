@@ -160,7 +160,7 @@ void    App::run(int argc, char *argv[])
         else
             std::cout << "option not found" << std::endl;
     }
-    plaintext = _vault.serialize();
+    _vault.serialize(plaintext);
     data = _crypto.encrypt(plaintext, _masterPassword);
     secureErase(plaintext);
     _fileManeger.writeEncrypted(data);

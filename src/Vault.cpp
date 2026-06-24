@@ -1,6 +1,38 @@
 #include "Vault.hpp"
+#include "SecureMemory.hpp"
 
+#include <stdexcept>
 #include <utility>
+
+namespace
+{
+void    addSize(std::size_t& total, std::size_t amount,
+    std::size_t maximum)
+{
+    if (amount > maximum - total)
+        throw std::length_error("vault data is too large");
+    total += amount;
+}
+
+void    readField(const std::string& data, std::size_t& position,
+    const char *prefix, std::size_t prefixLength,
+    std::size_t& valuePosition, std::size_t& valueLength)
+{
+    std::size_t lineEnd;
+
+    if (position > data.size()
+        || prefixLength > data.size() - position
+        || data.compare(position, prefixLength, prefix) != 0)
+        throw std::runtime_error("invalid serialized vault data");
+    position += prefixLength;
+    lineEnd = data.find('\n', position);
+    if (lineEnd == std::string::npos)
+        throw std::runtime_error("invalid serialized vault data");
+    valuePosition = position;
+    valueLength = lineEnd - position;
+    position = lineEnd + 1;
+}
+}
 
 Vault::Vault(void) {}
 
@@ -39,49 +71,62 @@ void    Vault::printAll(void) const
     }
 }
 
-std::string Vault::serialize(void) const
+void    Vault::serialize(std::string& data) const
 {
-    std::ostringstream  data;
-    size_t              size;
+    const std::size_t   entryOverhead = 41;
+    std::size_t         requiredSize = 0;
 
-    size = _entry.size();
-    if(size == 0)
-        return std::string();
-    
-    for (size_t i = 0; i < size; i++)
+    secureErase(data);
+    for (std::size_t i = 0; i < _entry.size(); i++)
     {
-        data << "service:" << _entry[i].getService() << "\n";
-        data << "username:" << _entry[i].getUsername() << "\n";
-        data << "password:" << _entry[i].getPassword() << "\n";
-        data << "----------\n\n";
+        addSize(requiredSize, entryOverhead, data.max_size());
+        addSize(requiredSize, _entry[i].getService().size(),
+            data.max_size());
+        addSize(requiredSize, _entry[i].getUsername().size(),
+            data.max_size());
+        addSize(requiredSize, _entry[i].getPassword().size(),
+            data.max_size());
     }
-    return data.str();
+    data.reserve(requiredSize);
+    for (std::size_t i = 0; i < _entry.size(); i++)
+    {
+        data.append("service:");
+        data.append(_entry[i].getService());
+        data.append("\nusername:");
+        data.append(_entry[i].getUsername());
+        data.append("\npassword:");
+        data.append(_entry[i].getPassword());
+        data.append("\n----------\n\n");
+    }
 }
 
-void    Vault::deserialize(std::string& data)
+void    Vault::deserialize(const std::string& data)
 {
-    std::istringstream  stream(data);
-    std::string line;
-    std::string service;
-    std::string username;
-    std::string password;
+    const char  separator[] = "----------\n\n";
+    std::size_t position = 0;
+    std::size_t valuePosition;
+    std::size_t valueLength;
 
     _entry.clear();
-
-    while (std::getline(stream, line))
+    while (position < data.size())
     {
-        if (line.find("service:") == 0)
-            service = line.substr(7);
-        else if (line.find("username:") == 0)
-            username = line.substr(8);
-        else if (line.find("password:") == 0)
-            password = line.substr(8);
-        else if (line.find("----------") == 0)
-        {
-            _entry.push_back(Entry(service, username, password));
-            service.clear();
-            username.clear();
-            password.clear();
-        }
+        Entry entry;
+
+        readField(data, position, "service:", 8,
+            valuePosition, valueLength);
+        entry.setService(data.data() + valuePosition, valueLength);
+        readField(data, position, "username:", 9,
+            valuePosition, valueLength);
+        entry.setUsername(data.data() + valuePosition, valueLength);
+        readField(data, position, "password:", 9,
+            valuePosition, valueLength);
+        entry.setPassword(data.data() + valuePosition, valueLength);
+        if (position > data.size()
+            || sizeof(separator) - 1 > data.size() - position
+            || data.compare(position, sizeof(separator) - 1,
+                separator) != 0)
+            throw std::runtime_error("invalid serialized vault data");
+        position += sizeof(separator) - 1;
+        _entry.push_back(std::move(entry));
     }
 }

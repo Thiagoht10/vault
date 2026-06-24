@@ -11,7 +11,9 @@ Gerenciador de senhas executado no terminal e escrito em C++. As credenciais sã
 - remover uma credencial pelo índice;
 - carregar um cofre criptografado existente;
 - salvar o cofre automaticamente ao encerrar pelo menu;
-- detectar senha incorreta ou arquivo corrompido durante a descriptografia.
+- detectar senha incorreta ou arquivo corrompido durante a descriptografia;
+- rejeitar dados serializados que não estejam no formato esperado;
+- sobrescrever buffers sensíveis conhecidos antes de liberá-los.
 
 ## Requisitos
 
@@ -88,6 +90,8 @@ lista de Entry
     -> arquivo binário
 ```
 
+`Vault::serialize()` calcula o tamanho necessário, reserva o buffer uma única vez e acrescenta os campos diretamente nele. `Vault::deserialize()` percorre esse mesmo buffer por posições, sem criar uma cópia completa em `stringstream` nem usar `substr()` para cada campo.
+
 ### Estrutura `EncryptedData`
 
 `EncryptedData` agrupa o conteúdo criptografado e os parâmetros necessários para recuperá-lo:
@@ -108,9 +112,23 @@ O projeto utiliza `crypto_pwhash` para derivação da chave e `crypto_secretbox_
 
 ### Limpeza de dados sensíveis
 
-As chaves derivadas usadas durante a criptografia e a descriptografia são sobrescritas com `sodium_memzero` assim que deixam de ser necessárias.
+O projeto centraliza a limpeza de strings em `secureErase()`. Essa função usa `sodium_memzero()` para sobrescrever os bytes atuais e depois chama `clear()` para deixar a string logicamente vazia.
 
-Depois que o cofre é salvo com sucesso, o programa também chama `_masterPassword.clear()`. Isso deixa a `std::string` vazia, impedindo seu uso posterior pelo programa, mas não garante que os bytes anteriores sejam imediatamente sobrescritos na memória. Se ocorrer uma exceção antes do final do salvamento, essa chamada não é alcançada.
+`SecureEraseGuard` aplica essa limpeza por RAII: seu destrutor é executado ao final do escopo, inclusive durante o tratamento de exceções. Ele protege os dados temporários coletados ao adicionar uma entrada e o texto completo produzido pela descriptografia e serialização.
+
+A senha mestra é limpa no destrutor de `App`. Cada credencial é limpa por `Entry::~Entry()`, chamado automaticamente pelo `std::vector` quando uma entrada é removida ou quando o `Vault` é destruído.
+
+As chaves derivadas usam a classe privada `Crypto::SecureKey`, que contém um buffer fixo, não pode ser copiada e executa `sodium_memzero()` no destrutor. Assim, a chave é apagada tanto no fluxo normal quanto se ocorrer uma exceção.
+
+### Movimentação das entradas
+
+`Entry` e `Vault` não podem ser copiados. Uma entrada é transferida para o `Vault` com semântica de movimento:
+
+```text
+Entry temporário -> std::move -> std::vector<Entry>
+```
+
+O construtor e o operador de movimento são `noexcept`, permitindo que o vetor mova entradas durante realocações em vez de copiar as credenciais. Antes de remover ou sobrescrever uma entrada, seus campos são apagados com `secureErase()`.
 
 ## Organização do projeto
 
@@ -121,12 +139,14 @@ Depois que o cofre é salvo com sucesso, o programa também chama `_masterPasswo
 │   ├── Crypto.hpp
 │   ├── Entry.hpp
 │   ├── FileManeger.hpp
+│   ├── SecureMemory.hpp
 │   └── Vault.hpp
 ├── src/
 │   ├── App.cpp
 │   ├── Crypto.cpp
 │   ├── Entry.cpp
 │   ├── FileManeger.cpp
+│   ├── SecureMemory.cpp
 │   └── Vault.cpp
 ├── main.cpp
 └── Makefile
@@ -137,13 +157,14 @@ Depois que o cofre é salvo com sucesso, o programa também chama `_masterPasswo
 - `Vault`: mantém as credenciais e converte entre objetos e texto;
 - `Crypto`: deriva a chave, criptografa e descriptografa;
 - `FileManeger`: lê e escreve o formato binário do cofre.
+- `SecureMemory`: fornece limpeza com `sodium_memzero()` e proteção RAII para strings sensíveis.
 
 ## Limitações de segurança
 
 - a senha mestra é exibida enquanto é digitada no terminal;
 - a opção `show` imprime todas as senhas em texto legível;
-- as chaves derivadas são apagadas com `sodium_memzero`, mas credenciais, texto serializado e senha mestra ainda passam por objetos `std::string` sem garantia de sobrescrita segura;
-- `_masterPassword.clear()` é executado somente após o salvamento normal; caminhos de erro ou exceção podem encerrar o programa antes dessa limpeza;
+- senha mestra, credenciais e texto serializado ainda utilizam `std::string`; `sodium_memzero()` apaga o buffer atual, mas não recupera buffers antigos que uma realocação da string possa ter abandonado;
+- os dados sensíveis ainda não usam memória protegida por `sodium_malloc()` ou `sodium_mlock()`, podendo ser afetados por swap ou core dumps;
 - o formato binário utiliza tipos e representação nativos da máquina, portanto ainda não é portátil entre todas as arquiteturas;
 - não existe confirmação da senha ao criar um cofre novo;
 - não há bloqueio contra tentativas repetidas de senha.

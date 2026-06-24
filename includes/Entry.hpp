@@ -24,6 +24,9 @@ public:
     void    setService(const std::string& service);
     void    setUsername(const std::string& login);
     void    setPassword(const std::string& login);
+    void    setService(const char *service, std::size_t length);
+    void    setUsername(const char *username, std::size_t length);
+    void    setPassword(const char *password, std::size_t length);
 
     const std::string& getService(void) const;
     const std::string& getUsername(void) const;
