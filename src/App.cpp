@@ -134,6 +134,7 @@ void    App::del(void)
 void    App::erasePassword(void)
 {
     secureErase(_masterPassword);
+    secureErase(_checkPassword);
 }
 
 std::string App::readHiddenInput(std::string prompt)
@@ -150,6 +151,22 @@ std::string App::readHiddenInput(std::string prompt)
     return password;
 }
 
+bool    App::checkPassword(const std::string& pass1, const std::string& pass2)
+{
+    if(pass1.empty() || pass2.empty())
+        return false;
+
+    if(pass1.size() != pass2.size())
+        return false;
+
+    for (size_t i = 0; i < pass1.size(); i++)
+    {
+        if(pass1[i] != pass2[i])
+            return false;
+    }
+    return true;
+}
+
 void    App::run(int argc, char *argv[])
 {
     EncryptedData data;
@@ -157,13 +174,20 @@ void    App::run(int argc, char *argv[])
     SecureEraseGuard plaintextGuard(plaintext);
 
     parseArgs(argc, argv);
-    _masterPassword = readHiddenInput("please, put your password");
     if (_fileManeger.ifExist())
     {
+        _masterPassword = readHiddenInput("please, put your password");
         data = _fileManeger.readEncrypted();
         plaintext = _crypto.decrypt(data, _masterPassword);
         _vault.deserialize(plaintext);
         secureErase(plaintext);
+    }
+    else
+    {
+        _masterPassword = readHiddenInput("please, put your password");
+        _checkPassword = readHiddenInput("please, confirm your password");
+        if (!checkPassword(_masterPassword, _checkPassword))
+            throw std::runtime_error("bad password");
     }
 
     while(1)

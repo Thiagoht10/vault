@@ -25,11 +25,10 @@ private:
     private:
         std::array<unsigned char, crypto_secretbox_KEYBYTES> _bytes;
 
-        SecureKey(const SecureKey& other);
-        SecureKey&  operator=(const SecureKey& other);
-
     public:
         SecureKey(void);
+        SecureKey(const SecureKey& other) = delete;
+        SecureKey&  operator=(const SecureKey& other) = delete;
         ~SecureKey();
 
         unsigned char*  data(void);

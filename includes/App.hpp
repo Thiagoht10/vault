@@ -11,6 +11,7 @@ class App
 {
 private:
     std::string _masterPassword;
+    std::string _checkPassword;
     Crypto      _crypto;
     Vault       _vault;
     FileManeger _fileManeger;
@@ -22,6 +23,7 @@ private:
     void    del(void);
     void    erasePassword(void);
     std::string readHiddenInput(std::string prompt);
+    bool    checkPassword(const std::string& pass1, const std::string& pass2);
 
 public:
     App(void);

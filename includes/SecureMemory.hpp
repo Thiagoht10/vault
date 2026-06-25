@@ -10,10 +10,11 @@ class SecureEraseGuard
 private:
     std::string&    _value;
 
-    SecureEraseGuard(const SecureEraseGuard& other);
-    SecureEraseGuard&   operator=(const SecureEraseGuard& other);
-
+    
 public:
+    SecureEraseGuard(const SecureEraseGuard& other) = delete;
+    SecureEraseGuard&   operator=(const SecureEraseGuard& other) = delete;
+    
     explicit SecureEraseGuard(std::string& value) noexcept;
     ~SecureEraseGuard() noexcept;
 };
