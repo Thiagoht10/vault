@@ -14,6 +14,7 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - detect an incorrect password or corrupted file during decryption;
 - reject serialized data that does not match the expected format;
 - hide the master password while it is being entered;
+- require password confirmation when creating a new vault;
 - overwrite known sensitive buffers before releasing them.
 
 ## Requirements
@@ -53,7 +54,7 @@ Pass the path of the file that will store the vault as an argument:
 ./vault my_vault.vault
 ```
 
-The program prompts for the master password without displaying it while it is being entered, then shows the menu:
+The program prompts for the master password without displaying it while it is being entered. When creating a new vault, the password must be typed twice and both entries must match. After initialization, the program shows the menu:
 
 ```text
 1. add
@@ -62,7 +63,7 @@ The program prompts for the master password without displaying it while it is be
 4. exit
 ```
 
-If the specified file already exists, it is read and decrypted with the master password. If it does not exist, a new vault is created when the program is closed using option `4`.
+If the specified file already exists, it is read and decrypted with the master password. If it does not exist, a new vault is created when the confirmed master password is accepted and the program is closed using option `4`. A missing, empty, or mismatched confirmation causes the `bad password` error.
 
 The same file must later be opened with the same password. A different password—or changes to the encrypted bytes—causes the `wrong password or corrupted file` error.
 
@@ -126,7 +127,7 @@ Derived keys use the private `Crypto::SecureKey` class, which contains a fixed-s
 
 `App::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading the master password. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
 
-This protection is applied to the master password requested during initialization. The other fields entered through the menu remain visible while they are being typed.
+This protection is applied to the master password requested during initialization and to the confirmation prompt used when creating a new vault. The other fields entered through the menu remain visible while they are being typed.
 
 ### Moving entries
 
@@ -177,7 +178,6 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 - the master password, credentials, and serialized text still use `std::string`; `sodium_memzero()` erases the current buffer but cannot recover old buffers that a string reallocation may have abandoned;
 - sensitive data does not yet use memory protected by `sodium_malloc()` or `sodium_mlock()` and may therefore be affected by swap or core dumps;
 - the binary format uses the machine's native types and representation, so it is not portable across all architectures;
-- there is no password confirmation when creating a new vault;
 - there is no protection against repeated password attempts.
 
 Use this project as an educational implementation, not as a replacement for an audited password manager.
