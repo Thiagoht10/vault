@@ -15,6 +15,7 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - reject serialized data that does not match the expected format;
 - hide the master password while it is being entered;
 - require password confirmation when creating a new vault;
+- keep the master password, credential passwords, and serialized vault text in `SecureBuffer`;
 - overwrite known sensitive buffers before releasing them.
 
 ## Requirements
@@ -93,7 +94,7 @@ list of Entry objects
     -> binary file
 ```
 
-`Vault::serialize()` calculates the required size, allocates the buffer only once, and appends the fields directly to it. `Vault::deserialize()` traverses the same buffer by position, without creating a complete copy in a `stringstream` or using `substr()` for each field.
+`Vault::serialize()` writes to a `SecureBuffer`. It calculates the required size, reserves the buffer, and appends the fields directly to it. `Vault::deserialize()` traverses the same buffer by position, without creating a complete copy in a `stringstream` or using `substr()` for each field.
 
 ### `EncryptedData` structure
 
@@ -113,13 +114,17 @@ The `salt` and `nonce` are not passwords and can be stored in the file. The mast
 
 The project uses `crypto_pwhash` for key derivation and `crypto_secretbox_easy`/`crypto_secretbox_open_easy` for authenticated encryption.
 
-### Clearing sensitive data
+### Secure buffers and clearing
 
-The project centralizes string clearing in `secureErase()`. This function uses `sodium_memzero()` to overwrite the current bytes and then calls `clear()` to leave the string logically empty.
+The project uses `SecureBuffer` for the master password, credential passwords, and the serialized plaintext produced before encryption or after decryption. `SecureBuffer` owns its memory, cannot be copied, supports move semantics, and overwrites its allocated bytes with `sodium_memzero()` before releasing them.
 
-`SecureEraseGuard` applies this clearing through RAII: its destructor runs when the scope ends, including during exception handling. It protects the temporary data collected when an entry is added and the complete text produced by decryption and serialization.
+`SecureBuffer` tracks two different sizes: the number of bytes currently used and the allocated capacity. This avoids relying on `'\0'` to determine the length of sensitive data. Text-oriented helpers such as `c_data()` exist only for display or APIs that require a `const char*`; cryptographic operations use the explicit buffer size.
 
-The master password is cleared in the `App` destructor. Each credential is cleared by `Entry::~Entry()`, which is called automatically by the `std::vector` when an entry is removed or the `Vault` is destroyed.
+The project still centralizes `std::string` clearing in `secureErase()`. This function uses `sodium_memzero()` to overwrite the current bytes and then calls `clear()` to leave the string logically empty. It is used for fields that still live in `std::string`, such as service and username.
+
+`SecureEraseGuard` applies this clearing through RAII for `std::string` values: its destructor runs when the scope ends, including during exception handling.
+
+The master password is cleared by the `SecureBuffer` destructor when `App` is destroyed. Each credential password is cleared by `Entry::~Entry()`, which is called automatically by the `std::vector` when an entry is removed or the `Vault` is destroyed.
 
 Derived keys use the private `Crypto::SecureKey` class, which contains a fixed-size buffer, cannot be copied, and calls `sodium_memzero()` in its destructor. This ensures that the key is erased both during normal execution and when an exception occurs.
 
@@ -127,7 +132,7 @@ Derived keys use the private `Crypto::SecureKey` class, which contains a fixed-s
 
 `App::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading the master password. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
 
-This protection is applied to the master password requested during initialization and to the confirmation prompt used when creating a new vault. The other fields entered through the menu remain visible while they are being typed.
+This protection is applied to the master password requested during initialization and to the confirmation prompt used when creating a new vault. The fields entered through the menu remain visible while they are being typed, including the password of a credential added with option `1`.
 
 ### Moving entries
 
@@ -148,6 +153,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 │   ├── Crypto.hpp
 │   ├── Entry.hpp
 │   ├── FileManeger.hpp
+│   ├── SecureBuffer.hpp
 │   ├── SecureMemory.hpp
 │   ├── TerminalEchoGuard.hpp
 │   └── Vault.hpp
@@ -156,6 +162,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 │   ├── Crypto.cpp
 │   ├── Entry.cpp
 │   ├── FileManeger.cpp
+│   ├── SecureBuffer.cpp
 │   ├── SecureMemory.cpp
 │   ├── TerminalEchoGuard.cpp
 │   └── Vault.cpp
@@ -168,6 +175,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 - `Vault`: stores credentials and converts between objects and text;
 - `Crypto`: derives the key, encrypts, and decrypts;
 - `FileManeger`: reads and writes the vault's binary format;
+- `SecureBuffer`: owns sensitive byte buffers and erases them with `sodium_memzero()`;
 - `SecureMemory`: provides clearing with `sodium_memzero()` and RAII protection for sensitive strings;
 - `TerminalEchoGuard`: temporarily disables terminal echo and restores its configuration through RAII.
 
@@ -175,7 +183,11 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 - passwords for credentials added through the menu are still displayed while they are being entered;
 - the `show` option prints all passwords as readable text;
-- the master password, credentials, and serialized text still use `std::string`; `sodium_memzero()` erases the current buffer but cannot recover old buffers that a string reallocation may have abandoned;
+- service and username still use `std::string`; `sodium_memzero()` erases the current buffer but cannot recover old buffers that a string reallocation may have abandoned;
+- encrypted file creation currently depends on the process `umask`; the vault file is not explicitly forced to permission `0600`;
+- vault writes are not atomic, so an interruption during `FileManeger::writeEncrypted()` can leave a corrupted file;
+- the binary reader must treat malformed files carefully because size fields are stored in the file and are used to allocate buffers;
+- errors are printed by `main()`, but the process currently exits with status `0`;
 - sensitive data does not yet use memory protected by `sodium_malloc()` or `sodium_mlock()` and may therefore be affected by swap or core dumps;
 - the binary format uses the machine's native types and representation, so it is not portable across all architectures;
 - there is no protection against repeated password attempts.

@@ -19,7 +19,7 @@ public:
     void        addEntry(Entry&& entry);
     bool        removeEntry(size_t index);
     void        printAll(void) const;
-    void        serialize(std::string& data) const;
+    void        serialize(SecureBuffer& data) const;
     void        deserialize(SecureBuffer& data);
 };
 

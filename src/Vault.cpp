@@ -72,12 +72,12 @@ void    Vault::printAll(void) const
     }
 }
 
-void    Vault::serialize(std::string& data) const
+void    Vault::serialize(SecureBuffer& data) const
 {
     const std::size_t   entryOverhead = 41;
     std::size_t         requiredSize = 0;
 
-    secureErase(data);
+    data.erase();
     for (std::size_t i = 0; i < _entry.size(); i++)
     {
         addSize(requiredSize, entryOverhead, data.max_size());
@@ -88,13 +88,13 @@ void    Vault::serialize(std::string& data) const
         addSize(requiredSize, _entry[i].getPasswordSize(),
             data.max_size());
     }
-    data.reserve(requiredSize);
+    data.reserve(requiredSize + 1);
     for (std::size_t i = 0; i < _entry.size(); i++)
     {
         data.append("service:");
-        data.append(_entry[i].getService());
+        data.append(_entry[i].getService().c_str());
         data.append("\nusername:");
-        data.append(_entry[i].getUsername());
+        data.append(_entry[i].getUsername().c_str());
         data.append("\npassword:");
         data.append(reinterpret_cast<const char*>(_entry[i].getPassword()),
             _entry[i].getPasswordSize());

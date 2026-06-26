@@ -2,8 +2,10 @@
 #define SECURE_MEMORY_HPP
 
 #include <string>
+#include "SecureBuffer.hpp"
 
 void    secureErase(std::string& value) noexcept;
+void    secureErase(SecureBuffer& value) noexcept;
 
 class SecureEraseGuard
 {

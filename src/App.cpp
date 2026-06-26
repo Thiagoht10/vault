@@ -7,7 +7,7 @@ App::App(void) {}
 
 App::~App() 
 {
-    erasePassword();
+    //erasePassword();
 }
 
 void    App::parseArgs(int argc, char *argv[])
@@ -20,10 +20,11 @@ void    App::parseArgs(int argc, char *argv[])
 
 void    App::add(void)
 {
-    Entry   entry;
-    std::string tmp;
-    bool cancel = false;
-    SecureEraseGuard tmpGuard(tmp);
+    Entry           entry;
+    SecureBuffer    password;
+    std::string     tmp;
+    bool            cancel = false;
+    //SecureEraseGuard tmpGuard(tmp);
 
     std::cout << "\n" << "------------------" << "\n" << std::endl;
     std::cout << "please, insert datas:" << std::endl;
@@ -71,27 +72,27 @@ void    App::add(void)
         break;
     }
     
-    while (1)
-    {
+	while (1)
+	{
         if (cancel)
             break;
         std::cout << "Password: \n" << "> ";
-        if (!std::getline(std::cin, tmp))
-            return ;
-        if (tmp.empty())
+        password.readBytes();
+        if (password.size() == 0)
         {
             std::cout << "Can't have empyt inputs\n" << std::endl;
             continue ;
         }
-        if(tmp == "/cancel")
+        if(password.size() == 7 &&
+                    std::memcmp(password.data(), "/cancel", 7) == 0)
         {
             cancel = true;
             break;
         }
-        entry.setPassword(tmp);
-        secureErase(tmp);
+        entry.setPassword(password.data(), password.size());
+        password.erase();
         break;
-    }
+	}
     if (!cancel)
         _vault.addEntry(std::move(entry));
 }
@@ -131,39 +132,32 @@ void    App::del(void)
     }
 }
 
-void    App::erasePassword(void)
+/* void    App::erasePassword(void)
 {
     secureErase(_masterPassword);
     secureErase(_checkPassword);
-}
+} */
 
-std::string App::readHiddenInput(std::string prompt)
+void App::readHiddenInput(SecureBuffer& pass, std::string prompt)
 {
-    std::string password;
-
     std::cout << prompt << "\n" << "> ";
 
     TerminalEchoGuard guard;
 
-    if (!std::getline(std::cin, password))
-    {
-        secureErase(password);
-        throw std::runtime_error("failure to read input");
-    }
-    return password;
+    pass.readBytes();
 }
 
-bool    App::checkPassword(const std::string& pass1, const std::string& pass2)
+bool    App::checkPassword(void)
 {
-    if(pass1.empty() || pass2.empty())
+    if(_masterPassword.empty() || _checkPassword.empty())
         return false;
 
-    if(pass1.size() != pass2.size())
+    if(_masterPassword.size() != _checkPassword.size())
         return false;
 
-    for (size_t i = 0; i < pass1.size(); i++)
+    for (size_t i = 0; i < _masterPassword.size(); i++)
     {
-        if(pass1[i] != pass2[i])
+        if(_masterPassword.data()[i] != _checkPassword.data()[i])
             return false;
     }
     return true;
@@ -177,17 +171,17 @@ void    App::run(int argc, char *argv[])
     parseArgs(argc, argv);
     if (_fileManeger.ifExist())
     {
-        _masterPassword = readHiddenInput("please, put your password");
+        readHiddenInput(_masterPassword, "please, put your password");
         data = _fileManeger.readEncrypted();
         plaintext = _crypto.decrypt(data, _masterPassword);
         _vault.deserialize(plaintext);
-        secureErase(plaintext);
+        plaintext.erase();
     }
     else
     {
-        _masterPassword = readHiddenInput("please, put your password");
-        _checkPassword = readHiddenInput("please, confirm your password");
-        if (!checkPassword(_masterPassword, _checkPassword))
+        readHiddenInput(_masterPassword, "please, put your password");
+        readHiddenInput(_checkPassword, "\nplease, confirm your password");
+        if (!checkPassword())
             throw std::runtime_error("bad password");
     }
 

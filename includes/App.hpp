@@ -6,12 +6,13 @@
 #include "FileManeger.hpp"
 #include "Vault.hpp"
 #include "TerminalEchoGuard.hpp"
+#include <cstring>
 
 class App
 {
 private:
-    std::string _masterPassword;
-    std::string _checkPassword;
+    SecureBuffer _masterPassword;
+    SecureBuffer _checkPassword;
     Crypto      _crypto;
     Vault       _vault;
     FileManeger _fileManeger;
@@ -21,9 +22,9 @@ private:
     void    add(void);
     void    show(void);
     void    del(void);
-    void    erasePassword(void);
-    std::string readHiddenInput(std::string prompt);
-    bool    checkPassword(const std::string& pass1, const std::string& pass2);
+    //void    erasePassword(void);
+    void    readHiddenInput(SecureBuffer& pass, std::string prompt);
+    bool    checkPassword(void);
 
 public:
     App(void);

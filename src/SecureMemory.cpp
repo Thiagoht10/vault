@@ -9,6 +9,11 @@ void    secureErase(std::string& value) noexcept
     value.clear();
 }
 
+void    secureErase(SecureBuffer& value) noexcept
+{
+    value.erase();
+}
+
 SecureEraseGuard::SecureEraseGuard(std::string& value) noexcept
     : _value(value) {}
 

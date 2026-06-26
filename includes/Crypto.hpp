@@ -38,7 +38,7 @@ private:
 
     std::string generateSalt(void);
     std::string generateNonce(void);
-    void	deriveKey(SecureKey& key, const std::string& masterPassword,
+	void	deriveKey(SecureKey& key, const SecureBuffer& masterPassword,
             const std::string& salt, unsigned long long opsLimit,
             std::size_t memLimit, int algorithm) const;
 
@@ -46,10 +46,10 @@ public:
     Crypto(void);
     ~Crypto();
 
-    EncryptedData	encrypt(const std::string& plaintext,
-	        const std::string& masterPassword);
-    SecureBuffer	decrypt(const EncryptedData& data,
-	        const std::string& masterPassword);
+	EncryptedData	encrypt(const SecureBuffer& plaintext,
+	        const SecureBuffer& masterPassword);
+	SecureBuffer	decrypt(const EncryptedData& data,
+	        const SecureBuffer& masterPassword);
 };
 
 

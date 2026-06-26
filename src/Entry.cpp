@@ -51,22 +51,22 @@ void    Entry::setPassword(const std::string& password)
     _password.assign(password);
 }
 
-void    Entry::setService(const char *service, std::size_t length)
+void    Entry::setService(const unsigned char *service, std::size_t length)
 {
     secureErase(_service);
-    _service.assign(service, length);
+    _service.assign(reinterpret_cast<const char*>(service), length);
 }
 
-void    Entry::setUsername(const char *username, std::size_t length)
+void    Entry::setUsername(const unsigned char *username, std::size_t length)
 {
     secureErase(_username);
-    _username.assign(username, length);
+    _username.assign(reinterpret_cast<const char*>(username), length);
 }
 
-void    Entry::setPassword(const char *password, std::size_t length)
+/* void    Entry::setPassword(const char *password, std::size_t length)
 {
     _password.assign(reinterpret_cast<const unsigned char*>(password), length);
-}
+} */
 
 void    Entry::setPassword(const unsigned char *password, std::size_t length)
 {
@@ -99,7 +99,7 @@ void    Entry::print(void) const
 {
     std::cout << "Service: " << _service << std::endl;
     std::cout << "Username: " << _username << std::endl;
-    std::cout << "Password: " << _password.data() << std::endl;
+    std::cout << "Password: " << _password.c_data() << std::endl;
 }
 
 size_t  Entry::getPasswordSize(void) const

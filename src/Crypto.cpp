@@ -47,14 +47,14 @@ std::string Crypto::generateNonce(void)
 }
 
 void	Crypto::deriveKey(SecureKey& key,
-			const std::string& masterPassword,
-			const std::string& salt, unsigned long long opsLimit,
-			std::size_t memLimit, int algorithm) const
+				const SecureBuffer& masterPassword,
+				const std::string& salt, unsigned long long opsLimit,
+				std::size_t memLimit, int algorithm) const
 {
 	if (crypto_pwhash(
 			key.data(),
 			key.size(),
-			masterPassword.c_str(),
+			masterPassword.c_data(),
 			masterPassword.size(),
 			reinterpret_cast<const unsigned char*>(salt.data()),
 			opsLimit,
@@ -65,8 +65,8 @@ void	Crypto::deriveKey(SecureKey& key,
 	}
 }
 
-EncryptedData	Crypto::encrypt(const std::string& plaintext,
-	    const std::string& masterPassword)
+EncryptedData	Crypto::encrypt(const SecureBuffer& plaintext,
+		    const SecureBuffer& masterPassword)
 {
 	EncryptedData	data;
 	SecureKey		key;
@@ -89,9 +89,9 @@ EncryptedData	Crypto::encrypt(const std::string& plaintext,
 	data.ciphertext.resize(plaintext.size() + crypto_secretbox_MACBYTES);
 
 	if (crypto_secretbox_easy(
-			reinterpret_cast<unsigned char*>(&data.ciphertext[0]),
-			reinterpret_cast<const unsigned char*>(plaintext.data()),
-			plaintext.size(),
+				reinterpret_cast<unsigned char*>(&data.ciphertext[0]),
+				plaintext.data(),
+				plaintext.size(),
 			reinterpret_cast<const unsigned char*>(data.nonce.data()),
 			key.data()) != 0)
 	{
@@ -102,7 +102,7 @@ EncryptedData	Crypto::encrypt(const std::string& plaintext,
 }
 
 SecureBuffer	Crypto::decrypt(const EncryptedData& data,
-	    const std::string& masterPassword)
+		    const SecureBuffer& masterPassword)
 {
 	SecureKey		key;
 	SecureBuffer	plaintext;
