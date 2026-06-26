@@ -5,7 +5,10 @@ Entry::Entry(void) {}
 
 Entry::Entry(const std::string& svc, const std::string& usr,
     const std::string& pass)
-    :_service(svc), _username(usr), _password(pass) {}
+    :_service(svc), _username(usr)
+{
+    _password.assign(pass);
+}
 
 Entry::Entry(Entry&& other) noexcept
 {
@@ -45,8 +48,7 @@ void    Entry::setUsername(const std::string& login)
 
 void    Entry::setPassword(const std::string& password)
 {
-    secureErase(_password);
-    _password = password;
+    _password.assign(password);
 }
 
 void    Entry::setService(const char *service, std::size_t length)
@@ -63,7 +65,11 @@ void    Entry::setUsername(const char *username, std::size_t length)
 
 void    Entry::setPassword(const char *password, std::size_t length)
 {
-    secureErase(_password);
+    _password.assign(reinterpret_cast<const unsigned char*>(password), length);
+}
+
+void    Entry::setPassword(const unsigned char *password, std::size_t length)
+{
     _password.assign(password, length);
 }
 
@@ -77,14 +83,14 @@ const std::string& Entry::getUsername(void) const
     return (_username);
 }
 
-const std::string& Entry::getPassword(void) const
+const unsigned char* Entry::getPassword(void) const
 {
-    return (_password);
+    return _password.data();
 }
 
 void    Entry::eraseField(void)
 {
-    secureErase(_password);
+    _password.erase();
     secureErase(_username);
     secureErase(_service);
 }
@@ -93,5 +99,10 @@ void    Entry::print(void) const
 {
     std::cout << "Service: " << _service << std::endl;
     std::cout << "Username: " << _username << std::endl;
-    std::cout << "Password: " << _password << std::endl;
+    std::cout << "Password: " << _password.data() << std::endl;
+}
+
+size_t  Entry::getPasswordSize(void) const
+{
+    return _password.size();
 }

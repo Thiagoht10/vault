@@ -146,8 +146,10 @@ std::string App::readHiddenInput(std::string prompt)
     TerminalEchoGuard guard;
 
     if (!std::getline(std::cin, password))
+    {
+        secureErase(password);
         throw std::runtime_error("failure to read input");
-
+    }
     return password;
 }
 
@@ -170,8 +172,7 @@ bool    App::checkPassword(const std::string& pass1, const std::string& pass2)
 void    App::run(int argc, char *argv[])
 {
     EncryptedData data;
-    std::string plaintext;
-    SecureEraseGuard plaintextGuard(plaintext);
+    SecureBuffer plaintext;
 
     parseArgs(argc, argv);
     if (_fileManeger.ifExist())

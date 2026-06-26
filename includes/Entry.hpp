@@ -3,13 +3,14 @@
 
 #include <string>
 #include <iostream>
+#include "SecureBuffer.hpp"
 
 class Entry
 {
 private:
-    std::string _service;
-    std::string _username;
-    std::string _password;
+    std::string     _service;
+    std::string     _username;
+    SecureBuffer    _password;
 
 public:
     Entry(void);
@@ -23,17 +24,18 @@ public:
 
     void    setService(const std::string& service);
     void    setUsername(const std::string& login);
-    void    setPassword(const std::string& login);
+    void    setPassword(const std::string& password);
     void    setService(const char *service, std::size_t length);
     void    setUsername(const char *username, std::size_t length);
     void    setPassword(const char *password, std::size_t length);
+    void    setPassword(const unsigned char *password, std::size_t length);
 
-    const std::string& getService(void) const;
-    const std::string& getUsername(void) const;
-    const std::string& getPassword(void) const;
+    const std::string&      getService(void) const;
+    const std::string&      getUsername(void) const;
+    const unsigned char*    getPassword(void) const;
+    size_t                  getPasswordSize(void) const;
 
     void    eraseField(void);
-
     void    print(void) const;
 };
 

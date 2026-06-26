@@ -101,11 +101,11 @@ EncryptedData	Crypto::encrypt(const std::string& plaintext,
 	return data;
 }
 
-std::string	Crypto::decrypt(const EncryptedData& data,
+SecureBuffer	Crypto::decrypt(const EncryptedData& data,
 	    const std::string& masterPassword)
 {
-	SecureKey	key;
-	std::string	plaintext;
+	SecureKey		key;
+	SecureBuffer	plaintext;
 
 	if (data.salt.size() != crypto_pwhash_SALTBYTES)
 		throw std::runtime_error("invalid salt size");
@@ -126,7 +126,7 @@ std::string	Crypto::decrypt(const EncryptedData& data,
 	plaintext.resize(data.ciphertext.size() - crypto_secretbox_MACBYTES);
 
 	if (crypto_secretbox_open_easy(
-			reinterpret_cast<unsigned char*>(&plaintext[0]),
+			reinterpret_cast<unsigned char*>(plaintext.data()),
 			reinterpret_cast<const unsigned char*>(data.ciphertext.data()),
 			data.ciphertext.size(),
 			reinterpret_cast<const unsigned char*>(data.nonce.data()),

@@ -5,6 +5,7 @@
 #include <sodium.h>
 #include <stdexcept>
 #include <string>
+#include "SecureBuffer.hpp"
 
 struct EncryptedData
 {
@@ -47,7 +48,7 @@ public:
 
     EncryptedData	encrypt(const std::string& plaintext,
 	        const std::string& masterPassword);
-    std::string	decrypt(const EncryptedData& data,
+    SecureBuffer	decrypt(const EncryptedData& data,
 	        const std::string& masterPassword);
 };
 

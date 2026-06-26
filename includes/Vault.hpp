@@ -20,7 +20,7 @@ public:
     bool        removeEntry(size_t index);
     void        printAll(void) const;
     void        serialize(std::string& data) const;
-    void        deserialize(const std::string& data);
+    void        deserialize(SecureBuffer& data);
 };
 
 #endif

@@ -14,7 +14,7 @@ void    addSize(std::size_t& total, std::size_t amount,
     total += amount;
 }
 
-void    readField(const std::string& data, std::size_t& position,
+void    readField(SecureBuffer& data, std::size_t& position,
     const char *prefix, std::size_t prefixLength,
     std::size_t& valuePosition, std::size_t& valueLength)
 {
@@ -85,7 +85,7 @@ void    Vault::serialize(std::string& data) const
             data.max_size());
         addSize(requiredSize, _entry[i].getUsername().size(),
             data.max_size());
-        addSize(requiredSize, _entry[i].getPassword().size(),
+        addSize(requiredSize, _entry[i].getPasswordSize(),
             data.max_size());
     }
     data.reserve(requiredSize);
@@ -96,12 +96,13 @@ void    Vault::serialize(std::string& data) const
         data.append("\nusername:");
         data.append(_entry[i].getUsername());
         data.append("\npassword:");
-        data.append(_entry[i].getPassword());
+        data.append(reinterpret_cast<const char*>(_entry[i].getPassword()),
+            _entry[i].getPasswordSize());
         data.append("\n----------\n\n");
     }
 }
 
-void    Vault::deserialize(const std::string& data)
+void    Vault::deserialize(SecureBuffer& data)
 {
     const char  separator[] = "----------\n\n";
     std::size_t position = 0;
