@@ -49,45 +49,6 @@ void    SecureBuffer::createSpace(std::size_t value)
     _capacity = value;
 }
 
-std::size_t SecureBuffer::size(const unsigned char* data) const
-{
-    std::size_t size = 0;
-
-    if (!data)
-        return 0;
-    for (size_t i = 0; data[i]; i++)
-        size++;
-    return size;
-}
-
-unsigned char* SecureBuffer::copy(const unsigned char* data)
-{
-    unsigned char* tmp;
-    std::size_t    length;
-
-    if (!data)
-        throw std::runtime_error("failure to copy datas");
-
-    length = size(data);
-    tmp = new unsigned char [length + 1]();
-    if(!tmp)
-        throw std::runtime_error("failure to copy datas");
-    
-    for (size_t i = 0; i < length; i++)
-        tmp[i] = data[i];
-
-    return tmp;
-}
-
-void    SecureBuffer::eraseBuffer(unsigned char* data)
-{
-    if (!data)
-        return ;
-    sodium_memzero(data, size(data));
-
-    delete[] data;
-}
-
 void    SecureBuffer::increaseSpace(void)
 {
     reserve(_capacity + _increaseFactor);
@@ -149,11 +110,6 @@ void    SecureBuffer::clear(unsigned char* data, std::size_t length)
 {
     if (data && length > 0)
         sodium_memzero(data, length);
-}
-
-void    SecureBuffer::assign(const unsigned char* data)
-{
-    assign(data, size(data));
 }
 
 void    SecureBuffer::assign(const unsigned char* data, std::size_t length)
@@ -295,4 +251,40 @@ void    SecureBuffer::append(const char* str, std::size_t length)
     }
     _sizeUsed += length;
     _buffer[_sizeUsed] = '\0';
+}
+
+bool    SecureBuffer::operator==(const char* str)
+{
+    size_t i = 0;
+    
+    while (str[i])
+        i++;
+
+    if (size() != i)
+        return false;
+    if (compare(0, i, str) == 0)
+        return true;
+    return false;
+}
+
+bool    SecureBuffer::operator==(const SecureBuffer& other)
+{
+    if (size() != other.size())
+        return false;
+    
+    for (size_t i = 0; i < size(); i++)
+    {
+        if(data()[i] != other.data()[i])
+            return false;
+    }
+
+    return true;
+}
+
+bool    SecureBuffer::operator!=(const SecureBuffer& other)
+{
+    if (operator==(other))
+        return false;
+    
+    return true;
 }

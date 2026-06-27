@@ -1,5 +1,4 @@
 #include "App.hpp"
-#include "SecureMemory.hpp"
 
 #include <utility>
 
@@ -22,9 +21,9 @@ void    App::add(void)
 {
     Entry           entry;
     SecureBuffer    password;
-    std::string     tmp;
+    SecureBuffer    checkPass;
+    SecureString    tmp;
     bool            cancel = false;
-    //SecureEraseGuard tmpGuard(tmp);
 
     std::cout << "\n" << "------------------" << "\n" << std::endl;
     std::cout << "please, insert datas:" << std::endl;
@@ -32,12 +31,12 @@ void    App::add(void)
 
     while(1)
     {
-        std::cout << "Service: \n" << "> ";
-        if(!std::getline(std::cin, tmp))
-            return ;
+        std::cout << "service: \n" << "> ";
+        tmp.erase();
+        tmp.readBytes();
         if(tmp.empty())
         {
-            std::cout << "Can't have empyt inputs\n" << std::endl;
+            std::cout << "can't have empyt inputs\n" << std::endl;
             continue ;
         }
         if(tmp == "/cancel")
@@ -45,8 +44,8 @@ void    App::add(void)
             cancel = true;
             break;
         }
-        entry.setService(tmp);
-        secureErase(tmp);
+        entry.setService(tmp.data());
+        tmp.erase();
         break;
     }
 
@@ -54,12 +53,12 @@ void    App::add(void)
     {
         if (cancel)
             break;
-        std::cout << "Username: \n" << "> ";
-        if (!std::getline(std::cin, tmp))
-            return ;
+        std::cout << "username: \n" << "> ";
+        tmp.erase();
+        tmp.readBytes();
         if (tmp.empty())
         {
-            std::cout << "Can't have empyt inputs\n" << std::endl;
+            std::cout << "can't have empyt inputs\n" << std::endl;
             continue ;
         }
         if(tmp == "/cancel")
@@ -67,8 +66,8 @@ void    App::add(void)
             cancel = true;
             break;
         }
-        entry.setUsername(tmp);
-        secureErase(tmp);
+        entry.setUsername(tmp.data());
+        tmp.erase();
         break;
     }
     
@@ -76,21 +75,32 @@ void    App::add(void)
 	{
         if (cancel)
             break;
-        std::cout << "Password: \n" << "> ";
-        password.readBytes();
-        if (password.size() == 0)
-        {
-            std::cout << "Can't have empyt inputs\n" << std::endl;
-            continue ;
-        }
-        if(password.size() == 7 &&
-                    std::memcmp(password.data(), "/cancel", 7) == 0)
+        readHiddenInput(password, "password:");
+        if(password == "/cancel")
         {
             cancel = true;
             break;
         }
+        readHiddenInput(checkPass, "\nplease, confirm your password");
+        if(checkPass == "/cancel")
+        {
+            cancel = true;
+            break;
+        }
+        if(password != checkPass)
+        {
+            std::cout << "\npassword not match" << std::endl;
+            cancel = true;
+            break;
+        }
+        if (password.empty())
+        {
+            std::cout << "can't have empyt inputs\n" << std::endl;
+            continue ;
+        }
         entry.setPassword(password.data(), password.size());
         password.erase();
+        checkPass.erase();
         break;
 	}
     if (!cancel)
@@ -131,12 +141,6 @@ void    App::del(void)
         break;
     }
 }
-
-/* void    App::erasePassword(void)
-{
-    secureErase(_masterPassword);
-    secureErase(_checkPassword);
-} */
 
 void App::readHiddenInput(SecureBuffer& pass, std::string prompt)
 {
@@ -182,13 +186,17 @@ void    App::run(int argc, char *argv[])
         readHiddenInput(_masterPassword, "please, put your password");
         readHiddenInput(_checkPassword, "\nplease, confirm your password");
         if (!checkPassword())
+        {
+            _checkPassword.erase();
             throw std::runtime_error("bad password");
+        }
+        _checkPassword.erase();
     }
 
     while(1)
     {
         std::cout << "\n" << "------------------" << "\n" << std::endl;
-        std::cout << "\nSelect one option\n" << std::endl;
+        std::cout << "\nselect one option\n" << std::endl;
         std::cout << "1. add" << std::endl;
         std::cout << "2. show" << std::endl;
         std::cout << "3. delete" << std::endl;
@@ -212,6 +220,6 @@ void    App::run(int argc, char *argv[])
     }
     _vault.serialize(plaintext);
     data = _crypto.encrypt(plaintext, _masterPassword);
-    secureErase(plaintext);
+    plaintext.erase();
     _fileManeger.writeEncrypted(data);
 }

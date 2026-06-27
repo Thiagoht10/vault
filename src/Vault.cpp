@@ -1,5 +1,4 @@
 #include "Vault.hpp"
-#include "SecureMemory.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -81,9 +80,9 @@ void    Vault::serialize(SecureBuffer& data) const
     for (std::size_t i = 0; i < _entry.size(); i++)
     {
         addSize(requiredSize, entryOverhead, data.max_size());
-        addSize(requiredSize, _entry[i].getService().size(),
+        addSize(requiredSize, _entry[i].getServiceSize(),
             data.max_size());
-        addSize(requiredSize, _entry[i].getUsername().size(),
+        addSize(requiredSize, _entry[i].getUserNameSize(),
             data.max_size());
         addSize(requiredSize, _entry[i].getPasswordSize(),
             data.max_size());
@@ -92,9 +91,11 @@ void    Vault::serialize(SecureBuffer& data) const
     for (std::size_t i = 0; i < _entry.size(); i++)
     {
         data.append("service:");
-        data.append(_entry[i].getService().c_str());
+        data.append(reinterpret_cast<const char*>(_entry[i].getService()),
+            _entry[i].getServiceSize());
         data.append("\nusername:");
-        data.append(_entry[i].getUsername().c_str());
+        data.append(reinterpret_cast<const char*>(_entry[i].getUsername()),
+            _entry[i].getUserNameSize());
         data.append("\npassword:");
         data.append(reinterpret_cast<const char*>(_entry[i].getPassword()),
             _entry[i].getPasswordSize());

@@ -1,12 +1,12 @@
 #include "Entry.hpp"
-#include "SecureMemory.hpp"
 
 Entry::Entry(void) {}
 
 Entry::Entry(const std::string& svc, const std::string& usr,
     const std::string& pass)
-    :_service(svc), _username(usr)
 {
+    _service.assign(svc);
+    _username.assign(usr);
     _password.assign(pass);
 }
 
@@ -34,53 +34,56 @@ Entry::~Entry()
     eraseField();
 }
 
-void    Entry::setService(const std::string& service)
+void    Entry::setService(const unsigned char* service)
 {
-    secureErase(_service);
-    _service = service;
+    size_t i = 0;
+
+    while(service[i])
+        i++;
+    _service.erase();
+    setService(service, i);
 }
 
-void    Entry::setUsername(const std::string& login)
+void    Entry::setUsername(const unsigned char* login)
 {
-    secureErase(_username);
-    _username = login;
+    size_t i = 0;
+
+    while(login[i])
+        i++;
+    _username.erase();
+    setUsername(login, i);
 }
 
-void    Entry::setPassword(const std::string& password)
+/* void    Entry::setPassword(const char* password)
 {
     _password.assign(password);
-}
+} */
 
 void    Entry::setService(const unsigned char *service, std::size_t length)
 {
-    secureErase(_service);
-    _service.assign(reinterpret_cast<const char*>(service), length);
+    _service.erase();
+    _service.assign(service, length);
 }
 
 void    Entry::setUsername(const unsigned char *username, std::size_t length)
 {
-    secureErase(_username);
-    _username.assign(reinterpret_cast<const char*>(username), length);
+    _username.erase();
+    _username.assign(username, length);
 }
-
-/* void    Entry::setPassword(const char *password, std::size_t length)
-{
-    _password.assign(reinterpret_cast<const unsigned char*>(password), length);
-} */
 
 void    Entry::setPassword(const unsigned char *password, std::size_t length)
 {
     _password.assign(password, length);
 }
 
-const std::string& Entry::getService(void) const
+const unsigned char* Entry::getService(void) const
 {
-    return (_service);
+    return _service.data();
 }
 
-const std::string& Entry::getUsername(void) const
+const unsigned char* Entry::getUsername(void) const
 {
-    return (_username);
+    return _username.data();
 }
 
 const unsigned char* Entry::getPassword(void) const
@@ -90,19 +93,29 @@ const unsigned char* Entry::getPassword(void) const
 
 void    Entry::eraseField(void)
 {
+    _service.erase();
+    _username.erase();
     _password.erase();
-    secureErase(_username);
-    secureErase(_service);
 }
 
 void    Entry::print(void) const
 {
-    std::cout << "Service: " << _service << std::endl;
-    std::cout << "Username: " << _username << std::endl;
-    std::cout << "Password: " << _password.c_data() << std::endl;
+    std::cout << "Service: " << _service.data() << std::endl;
+    std::cout << "Username: " << _username.data() << std::endl;
+    std::cout << "Password: " << _password.data() << std::endl;
 }
 
 size_t  Entry::getPasswordSize(void) const
 {
     return _password.size();
+}
+
+size_t  Entry::getServiceSize(void) const
+{
+    return _service.size();
+}
+
+size_t  Entry::getUserNameSize(void) const
+{
+    return _username.size();
 }

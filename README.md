@@ -15,7 +15,8 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - reject serialized data that does not match the expected format;
 - hide the master password while it is being entered;
 - require password confirmation when creating a new vault;
-- keep the master password, credential passwords, and serialized vault text in `SecureBuffer`;
+- hide and confirm credential passwords while they are being entered;
+- keep the master password, credential fields, and serialized vault text in secure buffers;
 - overwrite known sensitive buffers before releasing them.
 
 ## Requirements
@@ -118,21 +119,23 @@ The project uses `crypto_pwhash` for key derivation and `crypto_secretbox_easy`/
 
 The project uses `SecureBuffer` for the master password, credential passwords, and the serialized plaintext produced before encryption or after decryption. `SecureBuffer` owns its memory, cannot be copied, supports move semantics, and overwrites its allocated bytes with `sodium_memzero()` before releasing them.
 
-`SecureBuffer` tracks two different sizes: the number of bytes currently used and the allocated capacity. This avoids relying on `'\0'` to determine the length of sensitive data. Text-oriented helpers such as `c_data()` exist only for display or APIs that require a `const char*`; cryptographic operations use the explicit buffer size.
+`SecureBuffer` tracks two different sizes: the number of bytes currently used and the allocated capacity. Binary data must always be written with an explicit length through methods such as `assign(data, length)` and `append(data, length)`. The class no longer provides an overload that accepts a raw `unsigned char*` without a size, because that would require searching for `'\0'` to guess the length.
 
-The project still centralizes `std::string` clearing in `secureErase()`. This function uses `sodium_memzero()` to overwrite the current bytes and then calls `clear()` to leave the string logically empty. It is used for fields that still live in `std::string`, such as service and username.
+The buffer still keeps a trailing `'\0'` after the used bytes so text-oriented helpers can work when the content is textual. `c_data()` exists for display or APIs that require a `const char*`, and `append(const char*)` is intended for trusted C-string literals such as serialization labels. Cryptographic operations and sensitive byte copies use `data()` together with `size()`.
 
-`SecureEraseGuard` applies this clearing through RAII for `std::string` values: its destructor runs when the scope ends, including during exception handling.
+`SecureString` wraps `SecureBuffer` for text fields such as service and username. This keeps the credential fields move-only and gives them the same explicit erase behavior used by the password buffers, while still allowing textual input and display through controlled accessors.
 
-The master password is cleared by the `SecureBuffer` destructor when `App` is destroyed. Each credential password is cleared by `Entry::~Entry()`, which is called automatically by the `std::vector` when an entry is removed or the `Vault` is destroyed.
+The master password is cleared by the `SecureBuffer` destructor when `App` is destroyed. Credential fields are cleared by `SecureBuffer` through `SecureString` and the password buffer when an `Entry` is erased, removed, overwritten, or destroyed by the `std::vector`.
 
 Derived keys use the private `Crypto::SecureKey` class, which contains a fixed-size buffer, cannot be copied, and calls `sodium_memzero()` in its destructor. This ensures that the key is erased both during normal execution and when an exception occurs.
 
-### Reading the master password
+Password comparisons currently use normal byte-by-byte comparisons. They are sufficient for the current local CLI flow, but they are not constant-time. If this project is hardened further, sensitive buffer comparisons should use a constant-time primitive such as `sodium_memcmp()`.
 
-`App::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading the master password. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
+### Reading passwords
 
-This protection is applied to the master password requested during initialization and to the confirmation prompt used when creating a new vault. The fields entered through the menu remain visible while they are being typed, including the password of a credential added with option `1`.
+`App::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading passwords. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
+
+This protection is applied to the master password requested during initialization, to the confirmation prompt used when creating a new vault, and to credential passwords added through option `1`. Credential passwords must also be typed twice and both entries must match. Service and username remain visible while they are being typed.
 
 ### Moving entries
 
@@ -142,7 +145,7 @@ This protection is applied to the master password requested during initializatio
 temporary Entry -> std::move -> std::vector<Entry>
 ```
 
-The move constructor and move assignment operator are `noexcept`, allowing the vector to move entries during reallocations instead of copying the credentials. Before an entry is removed or overwritten, its fields are erased with `secureErase()`.
+The move constructor and move assignment operator are `noexcept`, allowing the vector to move entries during reallocations instead of copying the credentials. Before an entry is removed or overwritten, its secure fields are explicitly erased.
 
 ## Project structure
 
@@ -154,7 +157,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 │   ├── Entry.hpp
 │   ├── FileManeger.hpp
 │   ├── SecureBuffer.hpp
-│   ├── SecureMemory.hpp
+│   ├── SecureString.hpp
 │   ├── TerminalEchoGuard.hpp
 │   └── Vault.hpp
 ├── src/
@@ -163,7 +166,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 │   ├── Entry.cpp
 │   ├── FileManeger.cpp
 │   ├── SecureBuffer.cpp
-│   ├── SecureMemory.cpp
+│   ├── SecureString.cpp
 │   ├── TerminalEchoGuard.cpp
 │   └── Vault.cpp
 ├── main.cpp
@@ -171,24 +174,22 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 ```
 
 - `App`: handles arguments, the master password, and the interactive menu;
-- `Entry`: represents a credential;
+- `Entry`: represents a credential using secure storage for service, username, and password;
 - `Vault`: stores credentials and converts between objects and text;
 - `Crypto`: derives the key, encrypts, and decrypts;
 - `FileManeger`: reads and writes the vault's binary format;
 - `SecureBuffer`: owns sensitive byte buffers and erases them with `sodium_memzero()`;
-- `SecureMemory`: provides clearing with `sodium_memzero()` and RAII protection for sensitive strings;
+- `SecureString`: stores text fields on top of `SecureBuffer`;
 - `TerminalEchoGuard`: temporarily disables terminal echo and restores its configuration through RAII.
 
 ## Security limitations
 
-- passwords for credentials added through the menu are still displayed while they are being entered;
 - the `show` option prints all passwords as readable text;
-- service and username still use `std::string`; `sodium_memzero()` erases the current buffer but cannot recover old buffers that a string reallocation may have abandoned;
 - encrypted file creation currently depends on the process `umask`; the vault file is not explicitly forced to permission `0600`;
 - vault writes are not atomic, so an interruption during `FileManeger::writeEncrypted()` can leave a corrupted file;
 - the binary reader must treat malformed files carefully because size fields are stored in the file and are used to allocate buffers;
-- errors are printed by `main()`, but the process currently exits with status `0`;
 - sensitive data does not yet use memory protected by `sodium_malloc()` or `sodium_mlock()` and may therefore be affected by swap or core dumps;
+- sensitive buffer comparisons are not constant-time yet;
 - the binary format uses the machine's native types and representation, so it is not portable across all architectures;
 - there is no protection against repeated password attempts.
 

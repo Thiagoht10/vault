@@ -18,9 +18,6 @@ private:
 
     void    increaseSpace(void);
     void    createSpace(std::size_t value);
-    std::size_t size(const unsigned char* data) const;
-    unsigned char* copy(const unsigned char* data);
-    void    eraseBuffer(unsigned char* data);
     void    clear(unsigned char* data, std::size_t length);
 
 public:
@@ -37,7 +34,6 @@ public:
 	const unsigned char*    data(void) const;
 	unsigned char*          data(void);
 	void                    readBytes(void);
-	void                    assign(const unsigned char* data);
 	void                    assign(const unsigned char* data, std::size_t length);
 	void                    assign(const std::string& data);
 	void                    swap(SecureBuffer& other) noexcept;
@@ -50,6 +46,9 @@ public:
 	void                    append(const char* str);
 	void                    append(const char* str, std::size_t length);
 
+    bool                    operator==(const char* str);
+    bool                    operator==(const SecureBuffer& other);
+    bool                    operator!=(const SecureBuffer& other);
 };
 
 
