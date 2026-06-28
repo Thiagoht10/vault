@@ -20,9 +20,9 @@ public:
     ~FileManeger();
 
     EncryptedData	readEncrypted(void) const;
-    void    writeEncrypted(const EncryptedData& data);
-    bool    ifExist(void) const;
-    void    setPath(const std::string pathname);
+    void            writeEncrypted(const EncryptedData& data);
+    bool            ifExist(void) const;
+    void            setPath(const std::string pathname);
 };
 
 

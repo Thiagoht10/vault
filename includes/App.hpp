@@ -22,9 +22,9 @@ private:
     void    add(void);
     void    show(void);
     void    del(void);
-    //void    erasePassword(void);
     void    readHiddenInput(SecureBuffer& pass, std::string prompt);
     bool    checkPassword(void);
+    bool    validInputIdx(std::string& input, size_t& index);
 
 public:
     App(void);

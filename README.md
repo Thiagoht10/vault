@@ -62,10 +62,12 @@ The program prompts for the master password without displaying it while it is be
 1. add
 2. show
 3. delete
-4. exit
+0. exit
 ```
 
-If the specified file already exists, it is read and decrypted with the master password. If it does not exist, a new vault is created when the confirmed master password is accepted and the program is closed using option `4`. A missing, empty, or mismatched confirmation causes the `bad password` error.
+Option `2` first lists only the available indexes and service names. The full credential, including username and password, is printed only after selecting a specific index.
+
+If the specified file already exists, it is read and decrypted with the master password. If it does not exist, a new vault is created when the confirmed master password is accepted and the program is closed using option `0`. A missing, empty, or mismatched confirmation causes the `bad password` error.
 
 The same file must later be opened with the same password. A different password—or changes to the encrypted bytes—causes the `wrong password or corrupted file` error.
 
@@ -96,6 +98,8 @@ list of Entry objects
 ```
 
 `Vault::serialize()` writes to a `SecureBuffer`. It calculates the required size, reserves the buffer, and appends the fields directly to it. `Vault::deserialize()` traverses the same buffer by position, without creating a complete copy in a `stringstream` or using `substr()` for each field.
+
+`FileManeger::writeEncrypted()` writes the encrypted file and then replaces its permissions with owner-only read/write access. On POSIX-style systems this corresponds to mode `0600`, so the vault file is not left readable by group or other users after a normal save.
 
 ### `EncryptedData` structure
 
@@ -184,8 +188,8 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 ## Security limitations
 
-- the `show` option prints all passwords as readable text;
-- encrypted file creation currently depends on the process `umask`; the vault file is not explicitly forced to permission `0600`;
+- selecting a credential through the `show` option still prints that password as readable text;
+- file permissions are applied after writing the encrypted data, so a stronger implementation would create the file with restrictive permissions from the start;
 - vault writes are not atomic, so an interruption during `FileManeger::writeEncrypted()` can leave a corrupted file;
 - the binary reader must treat malformed files carefully because size fields are stored in the file and are used to allocate buffers;
 - sensitive data does not yet use memory protected by `sodium_malloc()` or `sodium_mlock()` and may therefore be affected by swap or core dumps;

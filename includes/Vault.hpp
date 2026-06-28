@@ -18,9 +18,11 @@ public:
 
     void        addEntry(Entry&& entry);
     bool        removeEntry(size_t index);
-    void        printAll(void) const;
+    void        print(void);
+    void        printCredentialsHeader(void) const;
     void        serialize(SecureBuffer& data) const;
     void        deserialize(SecureBuffer& data);
+    bool        validInputIdx(std::string& input, size_t& index);
 };
 
 #endif

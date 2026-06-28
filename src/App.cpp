@@ -109,7 +109,7 @@ void    App::add(void)
 
 void    App::show(void)
 {
-    _vault.printAll();
+    _vault.print();
 }
 
 void    App::del(void)
@@ -120,24 +120,22 @@ void    App::del(void)
 
     while (1)
     {
+        _vault.printCredentialsHeader();
+        std::cout << "\n" << "------------------" << "\n" << std::endl;
         std::cout << "please, select an index" << std::endl;
-        std::cout << "type /cancel to cancel\n" << std::endl;
+        std::cout << "type /cancel to cancel\n> ";
 
         if (!std::getline(std::cin, input))
             return;
+        if (!validInputIdx(input, index))
+        {
+            std::cerr << "\ninvalid index\n" << std::endl;
+            return ;
+        }
         if(input == "/cancel")
             return;
-        ss << input;
-        for (int i = 0; input[i]; i++)
-        {
-            if(input[i] < '0' || input[i] > '9')
-            {
-                std::cout << "invalid index\n" << std::endl;
-                continue;
-            }
-        }
-        ss >> index;
-        _vault.removeEntry(index);
+        if (!_vault.removeEntry(index))
+            std::cerr << "\ninvalid index\n" << std::endl;
         break;
     }
 }
@@ -164,6 +162,25 @@ bool    App::checkPassword(void)
         if(_masterPassword.data()[i] != _checkPassword.data()[i])
             return false;
     }
+    return true;
+}
+
+bool    App::validInputIdx(std::string& input, size_t& index)
+{
+    std::stringstream ss;
+
+    if (input == "/cancel")
+    {
+        index = std::string::npos;
+        return true;
+    }
+    ss << input;
+    for (size_t i = 0; input[i]; i++)
+    {
+        if (input[i] < '0' || input[i] > '9')
+            return false;
+    }
+    ss >> index;
     return true;
 }
 
@@ -200,7 +217,7 @@ void    App::run(int argc, char *argv[])
         std::cout << "1. add" << std::endl;
         std::cout << "2. show" << std::endl;
         std::cout << "3. delete" << std::endl;
-        std::cout << "4. exit\n" << "\n> ";
+        std::cout << "0. exit\n" << "\n> ";
 
         if (!std::getline(std::cin, _option))
         {
@@ -213,7 +230,7 @@ void    App::run(int argc, char *argv[])
             show();
         else if(_option == "3")
             del();
-        else if(_option == "4")
+        else if(_option == "0")
             break;
         else
             std::cout << "option not found" << std::endl;

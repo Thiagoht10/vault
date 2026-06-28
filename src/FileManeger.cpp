@@ -107,6 +107,13 @@ void	FileManeger::writeEncrypted(const EncryptedData& data)
 	file.write(reinterpret_cast<const char*>(&cipherSize),
 		sizeof(cipherSize));
 	file.write(data.ciphertext.data(), cipherSize);
+
+	file.close();
+
+	std::filesystem::permissions(_path,
+			std::filesystem::perms::owner_write |
+			std::filesystem::perms::owner_read,
+			std::filesystem::perm_options::replace);
 }
 
 bool    FileManeger::ifExist(void) const
