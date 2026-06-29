@@ -6,29 +6,28 @@
 #include "FileManeger.hpp"
 #include "Vault.hpp"
 #include "TerminalEchoGuard.hpp"
+#include "IUserInterface.hpp"
 #include <cstring>
 
 class App
 {
 private:
-    SecureBuffer _masterPassword;
-    SecureBuffer _checkPassword;
-    Crypto      _crypto;
-    Vault       _vault;
-    FileManeger _fileManeger;
-    std::string _option;
+    IUserInterface& _ui;
+    SecureBuffer    _masterPassword;
+    SecureBuffer    _checkPassword;
+    Crypto          _crypto;
+    Vault           _vault;
+    FileManeger     _fileManeger;
 
     void    parseArgs(int argc, char *argv[]);
     void    add(void);
     void    show(void);
     void    del(void);
-    void    readHiddenInput(SecureBuffer& pass, std::string prompt);
     bool    checkPassword(void);
-    bool    validInputIdx(std::string& input, size_t& index);
 
 public:
-    App(void);
-    ~App();
+    App(IUserInterface& ui);
+    ~App() = default;
 
     void    run(int argc, char *argv[]);
 };

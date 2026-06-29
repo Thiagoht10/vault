@@ -1,13 +1,10 @@
 #include "App.hpp"
+#include "IUserInterface.hpp"
 
 #include <utility>
 
-App::App(void) {}
-
-App::~App() 
-{
-    //erasePassword();
-}
+App::App(IUserInterface& ui)
+    :_ui(ui) {}
 
 void    App::parseArgs(int argc, char *argv[])
 {
@@ -20,133 +17,32 @@ void    App::parseArgs(int argc, char *argv[])
 void    App::add(void)
 {
     Entry           entry;
-    SecureBuffer    password;
-    SecureBuffer    checkPass;
-    SecureString    tmp;
-    bool            cancel = false;
-
-    std::cout << "\n" << "------------------" << "\n" << std::endl;
-    std::cout << "please, insert datas:" << std::endl;
-    std::cout << "type /cancel to cancel\n" << std::endl;
-
-    while(1)
-    {
-        std::cout << "service: \n" << "> ";
-        tmp.erase();
-        tmp.readBytes();
-        if(tmp.empty())
-        {
-            std::cout << "can't have empyt inputs\n" << std::endl;
-            continue ;
-        }
-        if(tmp == "/cancel")
-        {
-            cancel = true;
-            break;
-        }
-        entry.setService(tmp.data());
-        tmp.erase();
-        break;
-    }
-
-    while (1)
-    {
-        if (cancel)
-            break;
-        std::cout << "username: \n" << "> ";
-        tmp.erase();
-        tmp.readBytes();
-        if (tmp.empty())
-        {
-            std::cout << "can't have empyt inputs\n" << std::endl;
-            continue ;
-        }
-        if(tmp == "/cancel")
-        {
-            cancel = true;
-            break;
-        }
-        entry.setUsername(tmp.data());
-        tmp.erase();
-        break;
-    }
     
-	while (1)
-	{
-        if (cancel)
-            break;
-        readHiddenInput(password, "password:");
-        if(password == "/cancel")
-        {
-            cancel = true;
-            break;
-        }
-        readHiddenInput(checkPass, "\nplease, confirm your password");
-        if(checkPass == "/cancel")
-        {
-            cancel = true;
-            break;
-        }
-        if(password != checkPass)
-        {
-            std::cout << "\npassword not match" << std::endl;
-            cancel = true;
-            break;
-        }
-        if (password.empty())
-        {
-            std::cout << "can't have empyt inputs\n" << std::endl;
-            continue ;
-        }
-        entry.setPassword(password.data(), password.size());
-        password.erase();
-        checkPass.erase();
-        break;
-	}
-    if (!cancel)
-        _vault.addEntry(std::move(entry));
+    if (!_ui.askNewEntry(entry))
+        return ;
+    
+    _vault.addEntry(std::move(entry));
 }
 
 void    App::show(void)
 {
-    _vault.print();
+    _ui.showEntryList(_vault);
 }
 
 void    App::del(void)
 {
     std::string input;
     size_t      index;
-    std::stringstream   ss;
 
-    while (1)
+    _ui.showEntryList(_vault);
+    if (!_ui.askEntryIndex(index, _vault))
+        return;
+    
+    if (!_vault.removeEntry(index))
     {
-        _vault.printCredentialsHeader();
-        std::cout << "\n" << "------------------" << "\n" << std::endl;
-        std::cout << "please, select an index" << std::endl;
-        std::cout << "type /cancel to cancel\n> ";
-
-        if (!std::getline(std::cin, input))
-            return;
-        if (!validInputIdx(input, index))
-        {
-            std::cerr << "\ninvalid index\n" << std::endl;
-            return ;
-        }
-        if(input == "/cancel")
-            return;
-        if (!_vault.removeEntry(index))
-            std::cerr << "\ninvalid index\n" << std::endl;
-        break;
+        _ui.showError("invalid index");
+        return;
     }
-}
-
-void App::readHiddenInput(SecureBuffer& pass, std::string prompt)
-{
-    std::cout << prompt << "\n" << "> ";
-
-    TerminalEchoGuard guard;
-
-    pass.readBytes();
 }
 
 bool    App::checkPassword(void)
@@ -165,75 +61,77 @@ bool    App::checkPassword(void)
     return true;
 }
 
-bool    App::validInputIdx(std::string& input, size_t& index)
-{
-    std::stringstream ss;
-
-    if (input == "/cancel")
-    {
-        index = std::string::npos;
-        return true;
-    }
-    ss << input;
-    for (size_t i = 0; input[i]; i++)
-    {
-        if (input[i] < '0' || input[i] > '9')
-            return false;
-    }
-    ss >> index;
-    return true;
-}
-
 void    App::run(int argc, char *argv[])
 {
-    EncryptedData data;
-    SecureBuffer plaintext;
+    EncryptedData   data;
+    SecureBuffer    plaintext;
+    IUserInterface::MenuAction  menu;
 
     parseArgs(argc, argv);
     if (_fileManeger.ifExist())
     {
-        readHiddenInput(_masterPassword, "please, put your password");
+        bool    unlocked = false;
         data = _fileManeger.readEncrypted();
-        plaintext = _crypto.decrypt(data, _masterPassword);
-        _vault.deserialize(plaintext);
-        plaintext.erase();
+
+        for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
+        {
+            _masterPassword.erase();
+            plaintext.erase();
+
+            _ui.askPassWord(_masterPassword, "please, put your password");
+            if(_crypto.decrypt(plaintext, data, _masterPassword))
+            {
+                _vault.deserialize(plaintext);
+                plaintext.erase();
+                unlocked = true;
+            }
+            else
+            {
+                if (attempt + 1 == 3)
+                    throw std::runtime_error("wrong password or corrupted file");
+
+                _ui.showError("wrong password, try again");
+            }
+        }
     }
     else
     {
-        readHiddenInput(_masterPassword, "please, put your password");
-        readHiddenInput(_checkPassword, "\nplease, confirm your password");
-        if (!checkPassword())
+        bool    unlocked = false;
+
+        for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
         {
+            _masterPassword.erase();
             _checkPassword.erase();
-            throw std::runtime_error("bad password");
+
+            _ui.askPassWord(_masterPassword, "please, put your password");
+            _ui.askPassWord(_checkPassword, "\nplease, confirm your password");
+            if (checkPassword())
+                unlocked = true;
+            else
+                std::cerr << "\nbad password, try again\n" << std::endl;
+            
+            if (attempt + 1 == 3 && !unlocked)
+            {
+                _checkPassword.erase();
+                _checkPassword.erase();
+                throw std::runtime_error("bad password");
+            }
         }
-        _checkPassword.erase();
     }
 
     while(1)
     {
-        std::cout << "\n" << "------------------" << "\n" << std::endl;
-        std::cout << "\nselect one option\n" << std::endl;
-        std::cout << "1. add" << std::endl;
-        std::cout << "2. show" << std::endl;
-        std::cout << "3. delete" << std::endl;
-        std::cout << "0. exit\n" << "\n> ";
-
-        if (!std::getline(std::cin, _option))
-        {
-            throw std::runtime_error("failure in insert of dates");
-        }
-        
-        if(_option == "1")
+        menu = _ui.askMainMenuAction();        
+        if(menu == IUserInterface::ACTION_ADD)
             add();
-        else if(_option == "2")
+        else if(menu == IUserInterface::ACTION_SHOW)
             show();
-        else if(_option == "3")
+        else if(menu == IUserInterface::ACTION_DELETE)
             del();
-        else if(_option == "0")
+        else if(menu == IUserInterface::ACTION_EXIT)
             break;
         else
-            std::cout << "option not found" << std::endl;
+            std::cerr << "option not found" << std::endl;
     }
     _vault.serialize(plaintext);
     data = _crypto.encrypt(plaintext, _masterPassword);

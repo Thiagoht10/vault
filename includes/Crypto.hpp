@@ -48,7 +48,7 @@ public:
 
 	EncryptedData	encrypt(const SecureBuffer& plaintext,
 	        const SecureBuffer& masterPassword);
-	SecureBuffer	decrypt(const EncryptedData& data,
+	bool	decrypt(SecureBuffer& plaintext, const EncryptedData& data,
 	        const SecureBuffer& masterPassword);
 };
 

@@ -1,11 +1,11 @@
-#include "Vault.hpp"
-#include "FileManeger.hpp"
 #include "App.hpp"
+#include "ConsoleUI.hpp"
 
 
 int main(int argc, char *argv[])
 {
-    App app;
+    ConsoleUI ui;
+    App app(ui);
 
     try
     {

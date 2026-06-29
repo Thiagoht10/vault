@@ -45,3 +45,5 @@ if grep -q "Service: google" "$OUT"; then
 else
     echo "insert credential [NOK]"
 fi
+
+rm -rf "$OUT" "$VAULT"

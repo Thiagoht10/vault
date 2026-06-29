@@ -54,11 +54,6 @@ void    Entry::setUsername(const unsigned char* login)
     setUsername(login, i);
 }
 
-/* void    Entry::setPassword(const char* password)
-{
-    _password.assign(password);
-} */
-
 void    Entry::setService(const unsigned char *service, std::size_t length)
 {
     _service.erase();

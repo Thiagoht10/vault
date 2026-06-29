@@ -16,13 +16,13 @@ public:
     Vault&  operator=(const Vault& other) = delete;
     ~Vault() = default;
 
-    void        addEntry(Entry&& entry);
-    bool        removeEntry(size_t index);
-    void        print(void);
-    void        printCredentialsHeader(void) const;
-    void        serialize(SecureBuffer& data) const;
-    void        deserialize(SecureBuffer& data);
-    bool        validInputIdx(std::string& input, size_t& index);
+    void            addEntry(Entry&& entry);
+    bool            removeEntry(size_t index);
+    void            serialize(SecureBuffer& data) const;
+    void            deserialize(SecureBuffer& data);
+    size_t          size(void) const;
+    bool            isValidIndex(size_t index) const;
+    const Entry&    getEntry(size_t index) const;
 };
 
 #endif

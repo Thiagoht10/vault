@@ -101,11 +101,10 @@ EncryptedData	Crypto::encrypt(const SecureBuffer& plaintext,
 	return data;
 }
 
-SecureBuffer	Crypto::decrypt(const EncryptedData& data,
+bool	Crypto::decrypt(SecureBuffer& plaintext, const EncryptedData& data,
 		    const SecureBuffer& masterPassword)
 {
 	SecureKey		key;
-	SecureBuffer	plaintext;
 
 	if (data.salt.size() != crypto_pwhash_SALTBYTES)
 		throw std::runtime_error("invalid salt size");
@@ -132,8 +131,8 @@ SecureBuffer	Crypto::decrypt(const EncryptedData& data,
 			reinterpret_cast<const unsigned char*>(data.nonce.data()),
 			key.data()) != 0)
 	{
-		throw std::runtime_error("wrong password or corrupted file");
+		return false;
 	}
 
-	return plaintext;
+	return true;
 }

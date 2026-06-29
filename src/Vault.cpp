@@ -50,56 +50,6 @@ bool    Vault::removeEntry(size_t index)
     return true;
 }
 
-void    Vault::print(void)
-{
-    size_t  size;
-    size_t  index;
-    std::string input;
-
-    size = _entry.size();
-    if(size == 0)
-    {
-        std::cout << "\nNothing to print\n" << std::endl;
-        return ;
-    }
-    
-    std::cout << "\n";
-    printCredentialsHeader();
-    std::cout << "\n" << "------------------" << "\n" << std::endl;
-    std::cout << "please, select one index to view the credentials\n";
-    std::cout << "type /cancel to cancel\n> ";
-    if(!std::getline(std::cin, input))
-    {
-        std::cerr << "failure to cat your input" << std::endl;
-        return;
-    }
-    if (!validInputIdx(input, index))
-    {
-        std::cerr << "\ninvalid index\n" << std::endl;
-        return ;
-    }
-    else
-    {
-        if (index == std::string::npos)
-            return ;
-    }
-    std::cout << "\n" << "------------------" << "\n" << std::endl;
-    _entry[index].print();
-}
-
-void    Vault::printCredentialsHeader(void) const
-{
-    size_t  size = _entry.size();
-
-    for (size_t i = 0; i < size; i++)
-    {
-        if (i > 0)
-            std::cout << "\n" << "------------------" << "\n" << std::endl;
-        std::cout << "[" << i << "]" << std::endl;
-        std::cout << "service: " << _entry[i].getService() << std::endl;
-    }
-}
-
 void    Vault::serialize(SecureBuffer& data) const
 {
     const std::size_t   entryOverhead = 41;
@@ -163,23 +113,21 @@ void    Vault::deserialize(SecureBuffer& data)
     }
 }
 
-bool    Vault::validInputIdx(std::string& input, size_t& index)
+size_t  Vault::size(void) const
 {
-    std::stringstream ss;
+    return _entry.size();
+}
 
-    if (input == "/cancel")
-    {
-        index = std::string::npos;
+bool    Vault::isValidIndex(size_t index) const
+{
+    if (index < size())
         return true;
-    }
-    ss << input;
-    for (size_t i = 0; input[i]; i++)
-    {
-        if (input[i] < '0' || input[i] > '9')
-            return false;
-    }
-    ss >> index;
-    if (index >= _entry.size())
-        return (false);
-    return true;
+    return false;
+}
+
+const Entry&  Vault::getEntry(size_t index) const
+{
+    if (!isValidIndex(index))
+        throw std::runtime_error("\ninvalid index\n");
+    return _entry[index];
 }
