@@ -7,10 +7,11 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 ## Features
 
 - add a credential with a service, username, and password;
-- list stored credentials;
+- list stored credential indexes and service names;
 - delete a credential by index;
 - load an existing encrypted vault;
 - save the vault automatically when exiting through the menu;
+- retry password input up to three times when opening or creating a vault;
 - detect an incorrect password or corrupted file during decryption;
 - reject serialized data that does not match the expected format;
 - hide the master password while it is being entered;
@@ -65,11 +66,13 @@ The program prompts for the master password without displaying it while it is be
 0. exit
 ```
 
-Option `2` first lists only the available indexes and service names. The full credential, including username and password, is printed only after selecting a specific index.
+Option `2` lists the available indexes and service names. The current terminal UI does not print usernames or stored passwords in the `show` flow.
 
-If the specified file already exists, it is read and decrypted with the master password. If it does not exist, a new vault is created when the confirmed master password is accepted and the program is closed using option `0`. A missing, empty, or mismatched confirmation causes the `bad password` error.
+Option `3` lists the available indexes and service names, then asks which entry should be deleted. Typing `/cancel` returns to the main menu without deleting anything.
 
-The same file must later be opened with the same password. A different password—or changes to the encrypted bytes—causes the `wrong password or corrupted file` error.
+If the specified file already exists, it is read and decrypted with the master password. The program allows up to three password attempts. A different password, or changes to the encrypted bytes, causes retry messages first and then the `wrong password or corrupted file` error after the final failed attempt.
+
+If the file does not exist, a new vault is created after a confirmed master password is accepted. The password and confirmation must both be non-empty and must match. Invalid input can be retried up to three times; after the final failed attempt, the program exits with `bad password`.
 
 ## How it works
 
@@ -137,7 +140,7 @@ Password comparisons currently use normal byte-by-byte comparisons. They are suf
 
 ### Reading passwords
 
-`App::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading passwords. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
+`ConsoleUI::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading passwords. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
 
 This protection is applied to the master password requested during initialization, to the confirmation prompt used when creating a new vault, and to credential passwords added through option `1`. Credential passwords must also be typed twice and both entries must match. Service and username remain visible while they are being typed.
 
@@ -157,15 +160,18 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 .
 ├── includes/
 │   ├── App.hpp
+│   ├── ConsoleUI.hpp
 │   ├── Crypto.hpp
 │   ├── Entry.hpp
 │   ├── FileManeger.hpp
+│   ├── IUserInterface.hpp
 │   ├── SecureBuffer.hpp
 │   ├── SecureString.hpp
 │   ├── TerminalEchoGuard.hpp
 │   └── Vault.hpp
 ├── src/
 │   ├── App.cpp
+│   ├── ConsoleUI.cpp
 │   ├── Crypto.cpp
 │   ├── Entry.cpp
 │   ├── FileManeger.cpp
@@ -177,9 +183,11 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 └── Makefile
 ```
 
-- `App`: handles arguments, the master password, and the interactive menu;
+- `App`: handles arguments, the master password, vault loading/saving, and the application flow;
+- `IUserInterface`: defines the UI operations used by `App`;
+- `ConsoleUI`: implements the current terminal prompts, hidden password input, menus, and list rendering;
 - `Entry`: represents a credential using secure storage for service, username, and password;
-- `Vault`: stores credentials and converts between objects and text;
+- `Vault`: stores credentials, exposes read-only access for UI rendering, and converts between objects and serialized text;
 - `Crypto`: derives the key, encrypts, and decrypts;
 - `FileManeger`: reads and writes the vault's binary format;
 - `SecureBuffer`: owns sensitive byte buffers and erases them with `sodium_memzero()`;
@@ -188,7 +196,8 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 ## Security limitations
 
-- selecting a credential through the `show` option still prints that password as readable text;
+- service names are shown as readable text in the terminal when listing entries;
+- the code still exposes read-only accessors for usernames and passwords, so any future UI that prints full credentials must treat that output as sensitive;
 - file permissions are applied after writing the encrypted data, so a stronger implementation would create the file with restrictive permissions from the start;
 - vault writes are not atomic, so an interruption during `FileManeger::writeEncrypted()` can leave a corrupted file;
 - the binary reader must treat malformed files carefully because size fields are stored in the file and are used to allocate buffers;

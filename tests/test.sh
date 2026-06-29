@@ -4,6 +4,8 @@ BIN="./vault"
 OUT="out.txt"
 VAULT="vault.test"
 
+make re > /dev/null
+
 printf "pass\npass\n0\n" | script -q -c "$BIN $VAULT" /dev/null > "$OUT"
 
 if [ -f "$VAULT" ]; then
@@ -40,10 +42,13 @@ printf "pass\npass\n1\ngoogle\nthiago\n123\n123\n0\n" | script -q -c "$BIN $VAUL
 
 printf "pass\n2\n0\n0\n" | script -q -c "$BIN $VAULT" /dev/null > "$OUT"
 
-if grep -q "Service: google" "$OUT"; then
+if grep -q "service: google" "$OUT"; then
     echo "insert credential [OK]"
 else
     echo "insert credential [NOK]"
 fi
 
 rm -rf "$OUT" "$VAULT"
+
+make fclean > /dev/null
+
