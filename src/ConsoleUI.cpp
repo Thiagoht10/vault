@@ -41,6 +41,8 @@ void       ConsoleUI::askPassWord(SecureBuffer& pass, std::string prompt)
 
 void    ConsoleUI::showEntryList(const Vault& vault) const
 {
+    std::stringstream   ss;
+
     for (size_t i = 0; i < vault.size(); i++)
     {
         const Entry& entry = vault.getEntry(i);
@@ -52,7 +54,34 @@ void    ConsoleUI::showEntryList(const Vault& vault) const
     }
 }
 
-bool    ConsoleUI::askEntryIndex(size_t& index, const Vault& vault)
+void    ConsoleUI::showEntryDetais(const Entry& entry) const
+{
+    std::cout << "\n" << "------------------" << std::endl;
+    std::cout << "service:: " << entry.getService() << std::endl;
+    std::cout << "username: " << entry.getUsername() << std::endl;
+    std::cout << "password: " << entry.getPassword() << std::endl;
+    std::cout << "\n" << "------------------" << std::endl;
+}
+
+void    ConsoleUI::showEntryTemporarily(const Entry& entry) const
+{
+    std::string tmp;
+
+    std::cout << "\033[?1049h"; // entra na tela temporaria
+    std::cout << "\033[2J\033[H";
+
+    showEntryDetais(entry);
+
+    std::cout << "\npress Enter to continue...";
+    std::cout.flush();
+    std::getline(std::cin, tmp);
+
+    std::cout << "\033[2J\033[H";
+    std::cout << "\033[?1049l";
+    std::cout.flush();
+}
+
+bool    ConsoleUI::askEntryIndex(size_t& index, const Vault& vault) const
 {
     std::stringstream   ss;
     std::string         input;
@@ -62,6 +91,9 @@ bool    ConsoleUI::askEntryIndex(size_t& index, const Vault& vault)
     std::cout << "type /cancel to cancel\n> ";
 
     if (!std::getline(std::cin, input))
+        return false;
+
+    if (input.empty())
         return false;
 
     if (input == "/cancel")
@@ -178,3 +210,4 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
 	}
     return true;
 }
+

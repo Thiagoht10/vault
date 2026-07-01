@@ -8,6 +8,7 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 
 - add a credential with a service, username, and password;
 - list stored credential indexes and service names;
+- reveal a selected credential temporarily in the terminal;
 - delete a credential by index;
 - load an existing encrypted vault;
 - save the vault automatically when exiting through the menu;
@@ -66,7 +67,7 @@ The program prompts for the master password without displaying it while it is be
 0. exit
 ```
 
-Option `2` lists the available indexes and service names. The current terminal UI does not print usernames or stored passwords in the `show` flow.
+Option `2` lists the available indexes and service names, asks which entry should be shown, and then reveals the selected credential temporarily. The terminal UI uses the terminal alternate screen for this reveal: pressing Enter returns to the previous screen so the credential is not left visible in the normal terminal scrollback.
 
 Option `3` lists the available indexes and service names, then asks which entry should be deleted. Typing `/cancel` returns to the main menu without deleting anything.
 
@@ -144,6 +145,12 @@ Password comparisons currently use normal byte-by-byte comparisons. They are suf
 
 This protection is applied to the master password requested during initialization, to the confirmation prompt used when creating a new vault, and to credential passwords added through option `1`. Credential passwords must also be typed twice and both entries must match. Service and username remain visible while they are being typed.
 
+### Showing credentials
+
+`ConsoleUI::showEntryTemporarily()` displays a selected entry on the terminal alternate screen. This is a visual protection: when the user presses Enter, the program leaves the alternate screen and returns to the previous menu view. In normal terminal use, this avoids leaving the revealed username and password in the main scrollback.
+
+This does not make terminal output a secure storage channel. Once a password is written to the terminal, the terminal emulator, screen capture tools, session recorders, or other external components may still have seen it. The reveal flow should therefore be treated as temporary display, not as guaranteed secure deletion from the terminal.
+
 ### Moving entries
 
 `Entry` and `Vault` cannot be copied. An entry is transferred to the `Vault` using move semantics:
@@ -185,7 +192,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 - `App`: handles arguments, the master password, vault loading/saving, and the application flow;
 - `IUserInterface`: defines the UI operations used by `App`;
-- `ConsoleUI`: implements the current terminal prompts, hidden password input, menus, and list rendering;
+- `ConsoleUI`: implements the current terminal prompts, hidden password input, menus, list rendering, and temporary credential reveal;
 - `Entry`: represents a credential using secure storage for service, username, and password;
 - `Vault`: stores credentials, exposes read-only access for UI rendering, and converts between objects and serialized text;
 - `Crypto`: derives the key, encrypts, and decrypts;
@@ -197,7 +204,8 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 ## Security limitations
 
 - service names are shown as readable text in the terminal when listing entries;
-- the code still exposes read-only accessors for usernames and passwords, so any future UI that prints full credentials must treat that output as sensitive;
+- option `2` can reveal usernames and passwords in the terminal; the alternate screen hides them from the normal scrollback in typical terminal use, but it cannot guarantee secure deletion from the terminal emulator or external capture tools;
+- `ConsoleUI::showEntryDetais()` currently prints password data through stream output instead of writing with an explicit byte length, so a stronger implementation should avoid C-string-style output for secrets and use `getPasswordSize()`;
 - file permissions are applied after writing the encrypted data, so a stronger implementation would create the file with restrictive permissions from the start;
 - vault writes are not atomic, so an interruption during `FileManeger::writeEncrypted()` can leave a corrupted file;
 - the binary reader must treat malformed files carefully because size fields are stored in the file and are used to allocate buffers;

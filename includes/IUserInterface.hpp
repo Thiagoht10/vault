@@ -21,12 +21,12 @@ public:
 
     virtual MenuAction  askMainMenuAction(void) = 0;
     virtual void        askPassWord(SecureBuffer& pass, std::string prompt) = 0;
-    virtual bool        askEntryIndex(size_t& index, const Vault& vault) = 0;
+    virtual bool        askEntryIndex(size_t& index, const Vault& vault) const = 0;
     virtual bool        askNewEntry(Entry& entry) = 0;
 
     virtual void        showEntryList(const Vault& vault) const = 0;
+    virtual void        showEntryTemporarily(const Entry& entry) const = 0;
     virtual void        showError(std::string error) const = 0;
-
 };
 
 

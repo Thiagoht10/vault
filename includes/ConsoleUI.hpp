@@ -16,11 +16,14 @@ public:
 
     MenuAction  askMainMenuAction(void);
     void        askPassWord(SecureBuffer& pass, std::string prompt);
-    bool        askEntryIndex(size_t& index, const Vault& vault);
+    bool        askEntryIndex(size_t& index, const Vault& vault) const;
     bool        askNewEntry(Entry& entry);
 
     void        showEntryList(const Vault& valt) const;
+    void        showEntryDetais(const Entry& entry) const;
+    void        showEntryTemporarily(const Entry& entry) const;
     void        showError(std::string error) const;
+
 };
 
 

@@ -26,7 +26,12 @@ void    App::add(void)
 
 void    App::show(void)
 {
+    size_t index;
+
     _ui.showEntryList(_vault);
+    if (!_ui.askEntryIndex(index, _vault))
+        return;
+    _ui.showEntryTemporarily(_vault.getEntry(index));
 }
 
 void    App::del(void)
