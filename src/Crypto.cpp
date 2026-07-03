@@ -9,11 +9,13 @@ Crypto::Crypto()
 Crypto::~Crypto() {}
 
 Crypto::SecureKey::SecureKey(void)
-	: _bytes() {}
+{
+	_bytes.resize(crypto_secretbox_KEYBYTES);
+}
 
 Crypto::SecureKey::~SecureKey()
 {
-	sodium_memzero(_bytes.data(), _bytes.size());
+	_bytes.erase();
 }
 
 unsigned char*	Crypto::SecureKey::data(void)
@@ -73,8 +75,8 @@ EncryptedData	Crypto::encrypt(const SecureBuffer& plaintext,
 
 	data.version = 1;
 	data.algorithm = crypto_pwhash_ALG_DEFAULT;
-	data.opsLimit = crypto_pwhash_OPSLIMIT_INTERACTIVE;
-	data.memLimit = crypto_pwhash_MEMLIMIT_INTERACTIVE;
+	data.opsLimit = crypto_pwhash_OPSLIMIT_MODERATE;
+	data.memLimit = crypto_pwhash_MEMLIMIT_MODERATE;
 
 	data.salt = generateSalt();
 	data.nonce = generateNonce();

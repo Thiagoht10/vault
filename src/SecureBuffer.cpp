@@ -1,5 +1,14 @@
 #include "SecureBuffer.hpp"
 
+namespace
+{
+void    ensureSodiumInitialized(void)
+{
+    if (sodium_init() < 0)
+        throw std::runtime_error("libsodium initialization failed");
+}
+}
+
 SecureBuffer::SecureBuffer(void) 
     : _buffer(NULL),
       _sizeUsed(0),
@@ -43,9 +52,18 @@ SecureBuffer::~SecureBuffer()
 
 void    SecureBuffer::createSpace(std::size_t value)
 {
-    _buffer = new unsigned char [value]();
-    if (!_buffer)
+    unsigned char*  tmp;
+
+    ensureSodiumInitialized();
+    tmp = reinterpret_cast<unsigned char*>(sodium_malloc(value));
+    if (!tmp)
         throw std::runtime_error("failure to create memory");
+    if (sodium_mlock(tmp, value) != 0)
+    {
+        sodium_free(tmp);
+        throw std::runtime_error("failure to protect memory");
+    }
+    _buffer = tmp;
     _capacity = value;
 }
 
@@ -64,7 +82,8 @@ void    SecureBuffer::erase(void)
     if (_buffer)
     {
         sodium_memzero(_buffer, _capacity);
-        delete[] _buffer;
+        sodium_munlock(_buffer, _capacity);
+        sodium_free(_buffer);
     }
     _buffer = NULL;
     _sizeUsed = 0;
@@ -148,15 +167,23 @@ void    SecureBuffer::reserve(size_t value)
 
     if (value <= _capacity)
         return ;
-    tmp = new unsigned char[value]();
+    ensureSodiumInitialized();
+    tmp = reinterpret_cast<unsigned char*>(sodium_malloc(value));
     if (!tmp)
         throw std::runtime_error("failure to create memory");
+    if (sodium_mlock(tmp, value) != 0)
+    {
+        sodium_free(tmp);
+        throw std::runtime_error("failure to protect memory");
+    }
+    sodium_memzero(tmp, value);
     for (std::size_t i = 0; i < _sizeUsed; i++)
         tmp[i] = _buffer[i];
     if (_buffer)
     {
         sodium_memzero(_buffer, _capacity);
-        delete[] _buffer;
+        sodium_munlock(_buffer, _capacity);
+        sodium_free(_buffer);
     }
     _buffer = tmp;
     _capacity = value;
@@ -253,31 +280,35 @@ void    SecureBuffer::append(const char* str, std::size_t length)
     _buffer[_sizeUsed] = '\0';
 }
 
+bool    SecureBuffer::equal(const SecureBuffer& a, const SecureBuffer& b) const
+{
+    const char* tmp1 = a.c_data();
+    const char* tmp2 = b.c_data();
+
+    if (a.size() != b.size())
+        return false;
+
+    if (sodium_memcmp(tmp1, tmp2, a.size()) != 0)
+        return false;
+    
+    return true;
+}
+
 bool    SecureBuffer::operator==(const char* str)
 {
-    size_t i = 0;
-    
-    while (str[i])
-        i++;
+    SecureBuffer tmp;
 
-    if (size() != i)
+    tmp.assign(str);
+    if (!operator==(tmp))
         return false;
-    if (compare(0, i, str) == 0)
-        return true;
-    return false;
+
+    return true;
 }
 
 bool    SecureBuffer::operator==(const SecureBuffer& other)
 {
-    if (size() != other.size())
+    if (!equal(*this, other))
         return false;
-    
-    for (size_t i = 0; i < size(); i++)
-    {
-        if(data()[i] != other.data()[i])
-            return false;
-    }
-
     return true;
 }
 

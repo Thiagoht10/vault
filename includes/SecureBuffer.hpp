@@ -19,6 +19,7 @@ private:
     void    increaseSpace(void);
     void    createSpace(std::size_t value);
     void    clear(unsigned char* data, std::size_t length);
+	bool	equal(const SecureBuffer& a, const SecureBuffer& b) const;
 
 public:
     SecureBuffer(void);

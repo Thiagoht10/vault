@@ -103,7 +103,7 @@ list of Entry objects
 
 `Vault::serialize()` writes to a `SecureBuffer`. It calculates the required size, reserves the buffer, and appends the fields directly to it. `Vault::deserialize()` traverses the same buffer by position, without creating a complete copy in a `stringstream` or using `substr()` for each field.
 
-`FileManeger::writeEncrypted()` writes the encrypted file and then replaces its permissions with owner-only read/write access. On POSIX-style systems this corresponds to mode `0600`, so the vault file is not left readable by group or other users after a normal save.
+`FileManeger::writeEncrypted()` writes encrypted data to a temporary file next to the target vault. The temporary file is created with POSIX `open()` using `O_CREAT | O_EXCL` and mode `0600`, so it is owner-only from creation and an existing temporary file is not overwritten. After the encrypted bytes are written, the file is closed, synchronized with `fsync()`, moved into place with `std::filesystem::rename()`, and the parent directory is synchronized so the rename is persisted more reliably after crashes or power loss.
 
 ### `EncryptedData` structure
 
@@ -121,11 +121,13 @@ list of Entry objects
 
 The `salt` and `nonce` are not passwords and can be stored in the file. The master password is not written to disk. It is used with the `salt` to derive the encryption key temporarily.
 
-The project uses `crypto_pwhash` for key derivation and `crypto_secretbox_easy`/`crypto_secretbox_open_easy` for authenticated encryption.
+The project uses `crypto_pwhash` with libsodium's `MODERATE` operation and memory limits for key derivation, and `crypto_secretbox_easy`/`crypto_secretbox_open_easy` for authenticated encryption.
+
+When reading an encrypted file, `FileManeger::readEncrypted()` validates the binary metadata before variable-sized encrypted blocks are allocated. It accepts only vault format version `1`, the password-hashing parameters currently written by `Crypto::encrypt()`, the expected salt and nonce sizes, and a ciphertext size between the secretbox MAC size and `MAX_VAULT_SIZE` (`10 MiB`). Malformed metadata is rejected before the program tries to derive a key or allocate the ciphertext buffer.
 
 ### Secure buffers and clearing
 
-The project uses `SecureBuffer` for the master password, credential passwords, and the serialized plaintext produced before encryption or after decryption. `SecureBuffer` owns its memory, cannot be copied, supports move semantics, and overwrites its allocated bytes with `sodium_memzero()` before releasing them.
+The project uses `SecureBuffer` for the master password, credential passwords, and the serialized plaintext produced before encryption or after decryption. `SecureBuffer` owns its memory, cannot be copied, supports move semantics, allocates its storage with `sodium_malloc()`, tries to lock it with `sodium_mlock()`, overwrites it with `sodium_memzero()`, and releases it with `sodium_free()`.
 
 `SecureBuffer` tracks two different sizes: the number of bytes currently used and the allocated capacity. Binary data must always be written with an explicit length through methods such as `assign(data, length)` and `append(data, length)`. The class no longer provides an overload that accepts a raw `unsigned char*` without a size, because that would require searching for `'\0'` to guess the length.
 
@@ -135,9 +137,9 @@ The buffer still keeps a trailing `'\0'` after the used bytes so text-oriented h
 
 The master password is cleared by the `SecureBuffer` destructor when `App` is destroyed. Credential fields are cleared by `SecureBuffer` through `SecureString` and the password buffer when an `Entry` is erased, removed, overwritten, or destroyed by the `std::vector`.
 
-Derived keys use the private `Crypto::SecureKey` class, which contains a fixed-size buffer, cannot be copied, and calls `sodium_memzero()` in its destructor. This ensures that the key is erased both during normal execution and when an exception occurs.
+Derived keys use the private `Crypto::SecureKey` class, which stores the key bytes in a `SecureBuffer`, cannot be copied, and therefore uses the same protected allocation and explicit clearing path as the other sensitive buffers.
 
-Password comparisons currently use normal byte-by-byte comparisons. They are sufficient for the current local CLI flow, but they are not constant-time. If this project is hardened further, sensitive buffer comparisons should use a constant-time primitive such as `sodium_memcmp()`.
+Sensitive buffer comparisons use `sodium_memcmp()` through `SecureBuffer::operator==()`. Password confirmation paths compare `SecureBuffer` values instead of manually checking byte by byte.
 
 ### Reading passwords
 
@@ -148,6 +150,8 @@ This protection is applied to the master password requested during initializatio
 ### Showing credentials
 
 `ConsoleUI::showEntryTemporarily()` displays a selected entry on the terminal alternate screen. This is a visual protection: when the user presses Enter, the program leaves the alternate screen and returns to the previous menu view. In normal terminal use, this avoids leaving the revealed username and password in the main scrollback.
+
+Credential fields are written to the terminal with explicit byte lengths from the stored `Entry`, instead of relying on C-string termination. This avoids truncating a stored field at the first `'\0'` byte when it is intentionally revealed.
 
 This does not make terminal output a secure storage channel. Once a password is written to the terminal, the terminal emulator, screen capture tools, session recorders, or other external components may still have seen it. The reveal flow should therefore be treated as temporary display, not as guaranteed secure deletion from the terminal.
 
@@ -205,13 +209,10 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 - service names are shown as readable text in the terminal when listing entries;
 - option `2` can reveal usernames and passwords in the terminal; the alternate screen hides them from the normal scrollback in typical terminal use, but it cannot guarantee secure deletion from the terminal emulator or external capture tools;
-- `ConsoleUI::showEntryDetais()` currently prints password data through stream output instead of writing with an explicit byte length, so a stronger implementation should avoid C-string-style output for secrets and use `getPasswordSize()`;
-- file permissions are applied after writing the encrypted data, so a stronger implementation would create the file with restrictive permissions from the start;
-- vault writes are not atomic, so an interruption during `FileManeger::writeEncrypted()` can leave a corrupted file;
-- the binary reader must treat malformed files carefully because size fields are stored in the file and are used to allocate buffers;
-- sensitive data does not yet use memory protected by `sodium_malloc()` or `sodium_mlock()` and may therefore be affected by swap or core dumps;
-- sensitive buffer comparisons are not constant-time yet;
+- vault writes use a fixed `.tmp` path and do not use file locking, so concurrent writers are still not supported;
+- encrypted file metadata is validated before variable-sized allocations, but the binary format still stores native integer representations and is intentionally tied to the current format version and KDF settings;
+- `SecureBuffer` uses `sodium_malloc()` and `sodium_mlock()`, but this cannot protect secrets after they are intentionally written to the terminal or copied by external system components;
 - the binary format uses the machine's native types and representation, so it is not portable across all architectures;
-- there is no protection against repeated password attempts.
+- there is no password-strength policy yet, and protection against offline brute-force depends on the master password strength plus the `crypto_pwhash` cost.
 
 Use this project as an educational implementation, not as a replacement for an audited password manager.

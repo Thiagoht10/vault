@@ -9,11 +9,21 @@ void    ConsoleUI::readHiddenInput(SecureBuffer& pass, std::string prompt)
     pass.readBytes();
 }
 
-IUserInterface::MenuAction  ConsoleUI::askMainMenuAction(void)
+void    ConsoleUI::clearTerminal(void) const
+{
+    std::cout << "\033[2J" << "\033[3J" << "\033[2H";
+
+    std::cout.flush();
+}
+
+IUserInterface::MenuAction  ConsoleUI::askMainMenuAction(std::string& msg)
 {
     std::string option;
 
-    std::cout << "\n" << "------------------" << "\n" << std::endl;
+    clearTerminal();
+    if(!msg.empty())
+        showMessage(msg);
+    std::cout << "------------------" << std::endl;
     std::cout << "\nselect one option\n" << std::endl;
     std::cout << "1. add" << std::endl;
     std::cout << "2. show" << std::endl;
@@ -57,10 +67,16 @@ void    ConsoleUI::showEntryList(const Vault& vault) const
 void    ConsoleUI::showEntryDetais(const Entry& entry) const
 {
     std::cout << "\n" << "------------------" << std::endl;
-    std::cout << "service:: " << entry.getService() << std::endl;
-    std::cout << "username: " << entry.getUsername() << std::endl;
-    std::cout << "password: " << entry.getPassword() << std::endl;
-    std::cout << "\n" << "------------------" << std::endl;
+    std::cout << "service: ";
+    std::cout.write(reinterpret_cast<const char*>(entry.getService()),
+            entry.getServiceSize()) << "\n";
+    std::cout << "username: ";
+    std::cout.write(reinterpret_cast<const char*>(entry.getUsername()),
+            entry.getUserNameSize()) << "\n";
+    std::cout << "password: ";
+    std::cout.write(reinterpret_cast<const char*>(entry.getPassword()),
+            entry.getPasswordSize()) << "\n";
+    std::cout << "------------------" << std::endl;
 }
 
 void    ConsoleUI::showEntryTemporarily(const Entry& entry) const
@@ -211,3 +227,30 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
     return true;
 }
 
+bool    ConsoleUI::askConfirmation(const Entry& entry) const
+{
+    std::string option;
+
+    std::cout << "\nare you sure you want to delete this credential?\n";
+    std::cout << "service: " << entry.getService() << std::endl;
+    std::cout << "\nY to yes | N to not\n" << std::endl;
+
+    while (option != "N" && option != "n" && option != "Y" && option != "y")
+    {
+        std::cout << "> ";
+        if (!std::getline(std::cin, option))
+            return false;
+        if (option != "N" && option != "n" && option != "Y" && option != "y")
+            showError("invalid option");
+    }
+
+    if (option == "N" || option == "n")
+        return false;
+
+    return true;
+}
+
+void    ConsoleUI::showMessage(std::string msg) const
+{
+    std::cout << "\n" << msg << "\n" << std::endl;
+}

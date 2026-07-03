@@ -24,7 +24,7 @@ private:
     class SecureKey
     {
     private:
-        std::array<unsigned char, crypto_secretbox_KEYBYTES> _bytes;
+        SecureBuffer _bytes;
 
     public:
         SecureKey(void);

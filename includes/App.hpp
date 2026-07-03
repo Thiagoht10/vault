@@ -13,11 +13,12 @@ class App
 {
 private:
     IUserInterface& _ui;
+    Crypto          _crypto;
     SecureBuffer    _masterPassword;
     SecureBuffer    _checkPassword;
-    Crypto          _crypto;
     Vault           _vault;
     FileManeger     _fileManeger;
+    std::string     _message;
 
     void    parseArgs(int argc, char *argv[]);
     void    add(void);

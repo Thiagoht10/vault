@@ -28,6 +28,11 @@ void    App::show(void)
 {
     size_t index;
 
+    if (_vault.size() == 0)
+    {
+        _message = "vault is empty";
+        return;
+    }
     _ui.showEntryList(_vault);
     if (!_ui.askEntryIndex(index, _vault))
         return;
@@ -43,10 +48,14 @@ void    App::del(void)
     if (!_ui.askEntryIndex(index, _vault))
         return;
     
-    if (!_vault.removeEntry(index))
+    if (_ui.askConfirmation(_vault.getEntry(index)))
     {
-        _ui.showError("invalid index");
-        return;
+        if (!_vault.removeEntry(index))
+        {
+            _ui.showError("invalid index");
+            return;
+        }
+        _message = "credential removed";
     }
 }
 
@@ -55,14 +64,9 @@ bool    App::checkPassword(void)
     if(_masterPassword.empty() || _checkPassword.empty())
         return false;
 
-    if(_masterPassword.size() != _checkPassword.size())
+    if (_masterPassword != _checkPassword)
         return false;
 
-    for (size_t i = 0; i < _masterPassword.size(); i++)
-    {
-        if(_masterPassword.data()[i] != _checkPassword.data()[i])
-            return false;
-    }
     return true;
 }
 
@@ -113,7 +117,7 @@ void    App::run(int argc, char *argv[])
             if (checkPassword())
                 unlocked = true;
             else
-                std::cerr << "\nbad password, try again\n" << std::endl;
+                _ui.showError("bad password, try again");
             
             if (attempt + 1 == 3 && !unlocked)
             {
@@ -126,7 +130,8 @@ void    App::run(int argc, char *argv[])
 
     while(1)
     {
-        menu = _ui.askMainMenuAction();        
+        menu = _ui.askMainMenuAction(_message);
+        _message.erase();
         if(menu == IUserInterface::ACTION_ADD)
             add();
         else if(menu == IUserInterface::ACTION_SHOW)

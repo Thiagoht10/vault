@@ -12,18 +12,20 @@ public:
     ConsoleUI() = default;
     ~ConsoleUI() = default;
 
-    void readHiddenInput(SecureBuffer& pass, std::string prompt);
+    void        readHiddenInput(SecureBuffer& pass, std::string prompt);
+    void        clearTerminal(void) const;
 
-    MenuAction  askMainMenuAction(void);
+    MenuAction  askMainMenuAction(std::string& msg);
     void        askPassWord(SecureBuffer& pass, std::string prompt);
     bool        askEntryIndex(size_t& index, const Vault& vault) const;
     bool        askNewEntry(Entry& entry);
+    bool        askConfirmation(const Entry& entry) const;
 
     void        showEntryList(const Vault& valt) const;
     void        showEntryDetais(const Entry& entry) const;
     void        showEntryTemporarily(const Entry& entry) const;
     void        showError(std::string error) const;
-
+    void        showMessage(std::string msg) const;
 };
 
 
