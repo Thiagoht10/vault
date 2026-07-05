@@ -1,12 +1,19 @@
 #include "ConsoleUI.hpp"
 
-void    ConsoleUI::readHiddenInput(SecureBuffer& pass, std::string prompt)
+IUserInterface::InputResult ConsoleUI::readHiddenInput(SecureBuffer& pass,
+        std::string prompt)
 {
     std::cout << prompt << "\n" << "> ";
 
     TerminalEchoGuard guard;
 
     pass.readBytes();
+    if (!std::cin)
+    {
+        std::cerr << "\n";
+        return INPUT_INTERRUPTED;
+    }
+    return INPUT_OK;
 }
 
 void    ConsoleUI::clearTerminal(void) const
@@ -16,9 +23,10 @@ void    ConsoleUI::clearTerminal(void) const
     std::cout.flush();
 }
 
-IUserInterface::MenuAction  ConsoleUI::askMainMenuAction(std::string& msg)
+IUserInterface::MenuInput   ConsoleUI::askMainMenuAction(std::string& msg)
 {
     std::string option;
+    MenuInput   input;
 
     clearTerminal();
     if(!msg.empty())
@@ -29,24 +37,30 @@ IUserInterface::MenuAction  ConsoleUI::askMainMenuAction(std::string& msg)
     std::cout << "2. show" << std::endl;
     std::cout << "3. delete" << std::endl;
     std::cout << "0. exit\n" << "\n> ";
+    input.result = INPUT_OK;
+    input.action = ACTION_INVALID;
     if (!std::getline(std::cin, option))
-        throw std::runtime_error("failure in insert of dates");
+    {
+        std::cerr << "\n";
+        input.result = INPUT_INTERRUPTED;
+        return input;
+    }
 
     if (option == "0")
-        return ACTION_EXIT;
+        input.action = ACTION_EXIT;
     else if (option == "1")
-        return ACTION_ADD;
+        input.action = ACTION_ADD;
     else if (option == "2")
-        return ACTION_SHOW;
+        input.action = ACTION_SHOW;
     else if (option == "3")
-        return ACTION_DELETE;
-    else
-        return ACTION_INVALID;
+        input.action = ACTION_DELETE;
+    return input;
 }
 
-void       ConsoleUI::askPassWord(SecureBuffer& pass, std::string prompt)
+IUserInterface::InputResult ConsoleUI::askPassWord(SecureBuffer& pass,
+        std::string prompt)
 {
-    readHiddenInput(pass, prompt);
+    return readHiddenInput(pass, prompt);
 }
 
 void    ConsoleUI::showEntryList(const Vault& vault) const
@@ -79,7 +93,7 @@ void    ConsoleUI::showEntryDetais(const Entry& entry) const
     std::cout << "------------------" << std::endl;
 }
 
-void    ConsoleUI::showEntryTemporarily(const Entry& entry) const
+IUserInterface::InputResult ConsoleUI::showEntryTemporarily(const Entry& entry) const
 {
     std::string tmp;
 
@@ -90,14 +104,22 @@ void    ConsoleUI::showEntryTemporarily(const Entry& entry) const
 
     std::cout << "\npress Enter to continue...";
     std::cout.flush();
-    std::getline(std::cin, tmp);
+    if (!std::getline(std::cin, tmp))
+    {
+        std::cout << "\033[2J\033[H";
+        std::cout << "\033[?1049l";
+        std::cout.flush();
+        return INPUT_INTERRUPTED;
+    }
 
     std::cout << "\033[2J\033[H";
     std::cout << "\033[?1049l";
     std::cout.flush();
+    return INPUT_OK;
 }
 
-bool    ConsoleUI::askEntryIndex(size_t& index, const Vault& vault) const
+IUserInterface::InputResult ConsoleUI::askEntryIndex(size_t& index,
+        const Vault& vault) const
 {
     std::stringstream   ss;
     std::string         input;
@@ -107,18 +129,21 @@ bool    ConsoleUI::askEntryIndex(size_t& index, const Vault& vault) const
     std::cout << "type /cancel to cancel\n> ";
 
     if (!std::getline(std::cin, input))
-        return false;
+    {
+        std::cerr << "\n";
+        return INPUT_INTERRUPTED;
+    }
 
     if (input.empty())
-        return false;
+        return INPUT_INVALID;
 
     if (input == "/cancel")
-        return false;
+        return INPUT_CANCEL;
     
     for (size_t i = 0; input[i]; i++)
     {
         if (input[i] < '0' || input[i] > '9')
-            return false;
+            return INPUT_INVALID;
     }
     ss << input;
     ss >> index;
@@ -126,9 +151,9 @@ bool    ConsoleUI::askEntryIndex(size_t& index, const Vault& vault) const
     if (!vault.isValidIndex(index))
     {
         std::cerr << "\ninvalid index\n" << std::endl;
-        return false;
+        return INPUT_INVALID;
     }
-    return true;
+    return INPUT_OK;
 }
 
 void    ConsoleUI::showError(std::string error) const
@@ -137,7 +162,7 @@ void    ConsoleUI::showError(std::string error) const
 }
 
 
-bool    ConsoleUI::askNewEntry(Entry& entry)
+IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 {
     SecureBuffer    password;
     SecureBuffer    checkPass;
@@ -152,13 +177,18 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
         std::cout << "service: \n" << "> ";
         tmp.erase();
         tmp.readBytes();
+        if (!std::cin)
+        {
+            std::cerr << "\n";
+            return INPUT_INTERRUPTED;
+        }
         if(tmp.empty())
         {
             std::cerr << "can't have empyt inputs\n" << std::endl;
             continue ;
         }
         if(tmp == "/cancel")
-            return false;
+            return INPUT_CANCEL;
         
         entry.setService(tmp.data());
         tmp.erase();
@@ -170,13 +200,18 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
         std::cout << "username: \n" << "> ";
         tmp.erase();
         tmp.readBytes();
+        if (!std::cin)
+        {
+            std::cerr << "\n";
+            return INPUT_INTERRUPTED;
+        }
         if (tmp.empty())
         {
             std::cerr << "can't have empyt inputs\n" << std::endl;
             continue ;
         }
         if(tmp == "/cancel")
-            return false;
+            return INPUT_CANCEL;
         
         entry.setUsername(tmp.data());
         tmp.erase();
@@ -192,9 +227,10 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
             password.erase();
             checkPass.erase();
 
-            readHiddenInput(password, "password:");
+            if (readHiddenInput(password, "password:") == INPUT_INTERRUPTED)
+                return INPUT_INTERRUPTED;
             if(password == "/cancel")
-                return false;
+                return INPUT_CANCEL;
 
             if (password.empty())
             {
@@ -202,9 +238,11 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
                 continue;
             }
 
-            readHiddenInput(checkPass, "\nplease, confirm your password");
+            if (readHiddenInput(checkPass, "\nplease, confirm your password")
+                    == INPUT_INTERRUPTED)
+                return INPUT_INTERRUPTED;
             if(checkPass == "/cancel")
-                return false;
+                return INPUT_CANCEL;
 
             if(password == checkPass)
                 unlocked = true;
@@ -217,20 +255,23 @@ bool    ConsoleUI::askNewEntry(Entry& entry)
                 checkPass.erase();
             }
             if (attempt + 1 == 3 && !unlocked)
-                return false;
+                return INPUT_INVALID;
         }
         entry.setPassword(password.data(), password.size());
         password.erase();
         checkPass.erase();
         break;
 	}
-    return true;
+    return INPUT_OK;
 }
 
-bool    ConsoleUI::askConfirmation(const Entry& entry) const
+IUserInterface::ConfirmationInput ConsoleUI::askConfirmation(const Entry& entry) const
 {
-    std::string option;
+    std::string         option;
+    ConfirmationInput   input;
 
+    input.result = INPUT_OK;
+    input.confirmed = false;
     std::cout << "\nare you sure you want to delete this credential?\n";
     std::cout << "service: " << entry.getService() << std::endl;
     std::cout << "\nY to yes | N to not\n" << std::endl;
@@ -239,15 +280,20 @@ bool    ConsoleUI::askConfirmation(const Entry& entry) const
     {
         std::cout << "> ";
         if (!std::getline(std::cin, option))
-            return false;
+        {
+            std::cerr << "\n";
+            input.result = INPUT_INTERRUPTED;
+            return input;
+        }
         if (option != "N" && option != "n" && option != "Y" && option != "y")
             showError("invalid option");
     }
 
     if (option == "N" || option == "n")
-        return false;
+        return input;
 
-    return true;
+    input.confirmed = true;
+    return input;
 }
 
 void    ConsoleUI::showMessage(std::string msg) const

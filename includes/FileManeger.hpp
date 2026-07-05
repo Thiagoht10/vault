@@ -14,20 +14,25 @@ class FileManeger
 {
 private:
     std::string _path;
+    int         _fd;
+    int         _tmpFd;
 
-    void    createTempFile(const std::filesystem::path& path) const;
-    void    openFile(std::ofstream& file, const std::filesystem::path& path) const;
-    void    syncFile(const std::filesystem::path& path) const;
+    void    syncFile(int fd) const;
     void    syncDirectory(const std::filesystem::path& path) const;
+    void    inOpen(void);
+    void    outOpen(std::string& path);
+    void    closeFile(int *fd);
+    void    readFull(void *buffer, std::size_t size);
+    void    writeFull(const void *buffer, std::size_t size);
 
 public:
     FileManeger(void);
     FileManeger(const std::string pathname);
-    FileManeger(const FileManeger& other);
-    FileManeger&    operator=(const FileManeger& other);
+    FileManeger(const FileManeger& other) = delete;
+    FileManeger&    operator=(const FileManeger& other) = delete;
     ~FileManeger();
 
-    EncryptedData	readEncrypted(void) const;
+    EncryptedData	readEncrypted(void);
     void            writeEncrypted(const EncryptedData& data);
     bool            ifExist(void) const;
     void            setPath(const std::string pathname);

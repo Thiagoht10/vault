@@ -12,9 +12,11 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - delete a credential by index;
 - load an existing encrypted vault;
 - save the vault automatically when exiting through the menu;
+- preserve completed changes when input is interrupted after an action;
 - retry password input up to three times when opening or creating a vault;
 - detect an incorrect password or corrupted file during decryption;
-- reject serialized data that does not match the expected format;
+- reject truncated or malformed encrypted vault files before using incomplete metadata;
+- reject serialized plaintext data that does not match the expected format;
 - hide the master password while it is being entered;
 - require password confirmation when creating a new vault;
 - hide and confirm credential passwords while they are being entered;
@@ -75,6 +77,8 @@ If the specified file already exists, it is read and decrypted with the master p
 
 If the file does not exist, a new vault is created after a confirmed master password is accepted. The password and confirmation must both be non-empty and must match. Invalid input can be retried up to three times; after the final failed attempt, the program exits with `bad password`.
 
+If terminal input is interrupted, the current unfinished input operation is cancelled. A partially filled new credential is not added to the vault. If a previous action has already completed, the application leaves the main loop and persists the current vault state before exiting.
+
 ## How it works
 
 When a vault is opened, the data follows this flow:
@@ -103,7 +107,9 @@ list of Entry objects
 
 `Vault::serialize()` writes to a `SecureBuffer`. It calculates the required size, reserves the buffer, and appends the fields directly to it. `Vault::deserialize()` traverses the same buffer by position, without creating a complete copy in a `stringstream` or using `substr()` for each field.
 
-`FileManeger::writeEncrypted()` writes encrypted data to a temporary file next to the target vault. The temporary file is created with POSIX `open()` using `O_CREAT | O_EXCL` and mode `0600`, so it is owner-only from creation and an existing temporary file is not overwritten. After the encrypted bytes are written, the file is closed, synchronized with `fsync()`, moved into place with `std::filesystem::rename()`, and the parent directory is synchronized so the rename is persisted more reliably after crashes or power loss.
+`FileManeger::readEncrypted()` and `FileManeger::writeEncrypted()` use POSIX file descriptors for the encrypted vault format. Reads go through `readFull()`, which keeps reading until the requested field is complete and rejects truncated files before the field is used. Writes go through `writeFull()`, which keeps writing until the requested buffer is complete or reports an error.
+
+`FileManeger::writeEncrypted()` writes encrypted data to a temporary file next to the target vault. The temporary file is created with POSIX `open()` using `O_CREAT | O_EXCL` and mode `0600`, so it is owner-only from creation and an existing temporary file is not overwritten. After the encrypted bytes are fully written, the file descriptor is synchronized with `fsync()`, closed, moved into place with `std::filesystem::rename()`, and the parent directory is synchronized so the rename is persisted more reliably after crashes or power loss.
 
 ### `EncryptedData` structure
 
@@ -123,7 +129,7 @@ The `salt` and `nonce` are not passwords and can be stored in the file. The mast
 
 The project uses `crypto_pwhash` with libsodium's `MODERATE` operation and memory limits for key derivation, and `crypto_secretbox_easy`/`crypto_secretbox_open_easy` for authenticated encryption.
 
-When reading an encrypted file, `FileManeger::readEncrypted()` validates the binary metadata before variable-sized encrypted blocks are allocated. It accepts only vault format version `1`, the password-hashing parameters currently written by `Crypto::encrypt()`, the expected salt and nonce sizes, and a ciphertext size between the secretbox MAC size and `MAX_VAULT_SIZE` (`10 MiB`). Malformed metadata is rejected before the program tries to derive a key or allocate the ciphertext buffer.
+When reading an encrypted file, `FileManeger::readEncrypted()` validates the binary metadata before variable-sized encrypted blocks are allocated. It accepts only vault format version `1`, the password-hashing parameters currently written by `Crypto::encrypt()`, the expected salt and nonce sizes, and a ciphertext size between the secretbox MAC size and `MAX_VAULT_SIZE` (`10 MiB`). Truncated files and malformed metadata are rejected before the program tries to derive a key or allocate the ciphertext buffer.
 
 ### Secure buffers and clearing
 
@@ -210,6 +216,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 - service names are shown as readable text in the terminal when listing entries;
 - option `2` can reveal usernames and passwords in the terminal; the alternate screen hides them from the normal scrollback in typical terminal use, but it cannot guarantee secure deletion from the terminal emulator or external capture tools;
 - vault writes use a fixed `.tmp` path and do not use file locking, so concurrent writers are still not supported;
+- if a write fails after the temporary file is created, the `.tmp` file may remain and must be removed before the next save attempt;
 - encrypted file metadata is validated before variable-sized allocations, but the binary format still stores native integer representations and is intentionally tied to the current format version and KDF settings;
 - `SecureBuffer` uses `sodium_malloc()` and `sodium_mlock()`, but this cannot protect secrets after they are intentionally written to the terminal or copied by external system components;
 - the binary format uses the machine's native types and representation, so it is not portable across all architectures;

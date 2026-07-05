@@ -1,55 +1,46 @@
 #include "FileManeger.hpp"
 
+#include <cerrno>
 #include <fcntl.h>
 #include <unistd.h>
 
-FileManeger::FileManeger() {}
+FileManeger::FileManeger()
+	: _fd(-1), _tmpFd(-1) {}
 
-FileManeger::FileManeger(const std::string pathname) 
-    :_path(pathname) {}
+FileManeger::FileManeger(const std::string pathname)
+	    :_path(pathname), _fd(-1), _tmpFd(-1) {}
 
-FileManeger::FileManeger(const FileManeger& other)
-    :_path(other._path) {}
-
-FileManeger&    FileManeger::operator=(const FileManeger& other)
+FileManeger::~FileManeger()
 {
-    if(this != &other)
-        _path = other._path;
-    
-    return *this;
+	closeFile(&_fd);
 }
 
-FileManeger::~FileManeger() {}
-
-EncryptedData	FileManeger::readEncrypted(void) const
+EncryptedData	FileManeger::readEncrypted(void)
 {
 	EncryptedData	data;
-	std::ifstream	file(_path, std::ios::binary);
 	char			magic[5];
 	std::size_t		saltSize;
 	std::size_t		nonceSize;
 	std::size_t		cipherSize;
 
-	if (!file)
-		throw std::runtime_error("could not open file");
+	inOpen();
 
-	file.read(magic, 5);
-	if (!file || std::string(magic, 5) != "VAULT")
+	readFull(magic, 5);
+	if (std::string(magic, 5) != "VAULT")
 		throw std::runtime_error("invalid vault file");
 
-	file.read(reinterpret_cast<char*>(&data.version),
+	readFull(reinterpret_cast<char*>(&data.version),
 		sizeof(data.version));
 
-	file.read(reinterpret_cast<char*>(&data.algorithm),
+	readFull(reinterpret_cast<char*>(&data.algorithm),
 		sizeof(data.algorithm));
 
-	file.read(reinterpret_cast<char*>(&data.opsLimit),
+	readFull(reinterpret_cast<char*>(&data.opsLimit),
 		sizeof(data.opsLimit));
 
-	file.read(reinterpret_cast<char*>(&data.memLimit),
+	readFull(reinterpret_cast<char*>(&data.memLimit),
 		sizeof(data.memLimit));
-	if (!file)
-		throw std::runtime_error("corrupted vault file");
+
 	if (data.version != 1)
 		throw std::runtime_error("unsupported vault version");
 	if (data.algorithm != crypto_pwhash_ALG_DEFAULT)
@@ -59,88 +50,75 @@ EncryptedData	FileManeger::readEncrypted(void) const
 	if (data.memLimit != crypto_pwhash_MEMLIMIT_MODERATE)
 		throw std::runtime_error("invalid mem limit");
 
-	file.read(reinterpret_cast<char*>(&saltSize),
+	readFull(reinterpret_cast<char*>(&saltSize),
 		sizeof(saltSize));
-	if (!file)
-		throw std::runtime_error("corrupted vault file");
 	if (saltSize != crypto_pwhash_SALTBYTES)
 		throw std::runtime_error("invalid salt size");
 	data.salt.resize(saltSize);
-	file.read(&data.salt[0], saltSize);
+	readFull(&data.salt[0], saltSize);
 
-	file.read(reinterpret_cast<char*>(&nonceSize),
+	readFull(reinterpret_cast<char*>(&nonceSize),
 		sizeof(nonceSize));
-	if (!file)
-		throw std::runtime_error("corrupted vault file");
 	if (nonceSize != crypto_secretbox_NONCEBYTES)
 		throw std::runtime_error("invalid nonce size");
 	data.nonce.resize(nonceSize);
-	file.read(&data.nonce[0], nonceSize);
+	readFull(&data.nonce[0], nonceSize);
 
-	file.read(reinterpret_cast<char*>(&cipherSize),
+	readFull(reinterpret_cast<char*>(&cipherSize),
 		sizeof(cipherSize));
-	if (!file)
-		throw std::runtime_error("corrupted vault file");
 	if (cipherSize < crypto_secretbox_MACBYTES || cipherSize > MAX_VAULT_SIZE)
 		throw std::runtime_error("invalid ciphertext size");
 	data.ciphertext.resize(cipherSize);
-	file.read(&data.ciphertext[0], cipherSize);
-
-	if (!file)
-		throw std::runtime_error("corrupted vault file");
+	readFull(&data.ciphertext[0], cipherSize);
 
 	return (data);
 }
 
 void	FileManeger::writeEncrypted(const EncryptedData& data)
 {
-	std::filesystem::path	finalPath(_path);
-	std::filesystem::path	tmpPath = finalPath;
-	std::ofstream			file;
+	std::string		finalPath(_path);
+	std::string		tmpPath = finalPath;
 	const char		magic[5] = {'V', 'A', 'U', 'L', 'T'};
 	std::size_t		saltSize;
 	std::size_t		nonceSize;
 	std::size_t		cipherSize;
 
 	tmpPath += ".tmp";
-	createTempFile(tmpPath);
 
-	openFile(file, tmpPath);
+	outOpen(tmpPath);
 
 	saltSize = data.salt.size();
 	nonceSize = data.nonce.size();
 	cipherSize = data.ciphertext.size();
 
-	file.write(magic, 5);
+	writeFull(magic, 5);
 
-	file.write(reinterpret_cast<const char*>(&data.version),
+	writeFull(reinterpret_cast<const char*>(&data.version),
 		sizeof(data.version));
 
-	file.write(reinterpret_cast<const char*>(&data.algorithm),
+	writeFull(reinterpret_cast<const char*>(&data.algorithm),
 		sizeof(data.algorithm));
 
-	file.write(reinterpret_cast<const char*>(&data.opsLimit),
+	writeFull(reinterpret_cast<const char*>(&data.opsLimit),
 		sizeof(data.opsLimit));
 
-	file.write(reinterpret_cast<const char*>(&data.memLimit),
+	writeFull(reinterpret_cast<const char*>(&data.memLimit),
 		sizeof(data.memLimit));
 
-	file.write(reinterpret_cast<const char*>(&saltSize),
+	writeFull(reinterpret_cast<const char*>(&saltSize),
 		sizeof(saltSize));
-	file.write(data.salt.data(), saltSize);
+	writeFull(data.salt.data(), saltSize);
 
-	file.write(reinterpret_cast<const char*>(&nonceSize),
+	writeFull(reinterpret_cast<const char*>(&nonceSize),
 		sizeof(nonceSize));
-	file.write(data.nonce.data(), nonceSize);
+	writeFull(data.nonce.data(), nonceSize);
 
-	file.write(reinterpret_cast<const char*>(&cipherSize),
+	writeFull(reinterpret_cast<const char*>(&cipherSize),
 		sizeof(cipherSize));
-	file.write(data.ciphertext.data(), cipherSize);
+	writeFull(data.ciphertext.data(), cipherSize);
 
-	file.close();
-	if (!file)
-		throw std::runtime_error("could not write file");
-	syncFile(tmpPath);
+	syncFile(_tmpFd);
+	closeFile(&_tmpFd);
 
 	std::filesystem::rename(tmpPath, finalPath);
 	syncDirectory(finalPath);
@@ -156,46 +134,58 @@ void	FileManeger::setPath(const std::string pathname)
 	_path = pathname;
 }
 
-void	FileManeger::createTempFile(const std::filesystem::path& path) const
+void	FileManeger::readFull(void *buffer, std::size_t size)
 {
-	int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+	char		*current;
+	std::size_t	total;
+	ssize_t		bytesRead;
 
-	if (fd == -1)
+	current = static_cast<char*>(buffer);
+	total = 0;
+	while (total < size)
 	{
-		if (errno == EEXIST)
-			throw std::runtime_error("temporary file already exists");
-		else
-			throw std::runtime_error("could not open file");
+		bytesRead = read(_fd, current + total, size - total);
+		if (bytesRead == 0)
+			throw std::runtime_error("truncated vault file");
+		if (bytesRead == -1)
+		{
+			if (errno == EINTR)
+				continue;
+			throw std::runtime_error("could not read file");
+		}
+		total += static_cast<std::size_t>(bytesRead);
 	}
-	close(fd);
 }
 
-void	FileManeger::openFile(std::ofstream& file,
-			const std::filesystem::path& path) const
+void	FileManeger::writeFull(const void *buffer, std::size_t size)
 {
-	file.open(path, std::ios::binary | std::ios::trunc);
+	const char	*current;
+	std::size_t	total;
+	ssize_t		bytesWritten;
 
-	if (!file)
-		throw std::runtime_error("could not open file");
-
-	std::filesystem::permissions(path,
-			std::filesystem::perms::owner_write |
-			std::filesystem::perms::owner_read,
-			std::filesystem::perm_options::replace);
+	current = static_cast<const char*>(buffer);
+	total = 0;
+	while (total < size)
+	{
+		bytesWritten = write(_tmpFd, current + total, size - total);
+		if (bytesWritten == -1)
+		{
+			if (errno == EINTR)
+				continue;
+			throw std::runtime_error("could not write file");
+		}
+		if (bytesWritten == 0)
+			throw std::runtime_error("could not write file");
+		total += static_cast<std::size_t>(bytesWritten);
+	}
 }
 
-void	FileManeger::syncFile(const std::filesystem::path& path) const
+void	FileManeger::syncFile(int fd) const
 {
-	int	fd = open(path.c_str(), O_RDONLY);
-
 	if (fd == -1)
 		throw std::runtime_error("could not open file for sync");
 	if (fsync(fd) == -1)
-	{
-		close(fd);
 		throw std::runtime_error("could not sync file");
-	}
-	close(fd);
 }
 
 void	FileManeger::syncDirectory(const std::filesystem::path& path) const
@@ -214,4 +204,33 @@ void	FileManeger::syncDirectory(const std::filesystem::path& path) const
 		throw std::runtime_error("could not sync directory");
 	}
 	close(fd);
+}
+
+void	FileManeger::inOpen(void)
+{
+	_fd = open(_path.c_str(), O_RDONLY);
+	if (_fd == -1)
+		throw std::runtime_error("could not open file");
+}
+
+void	FileManeger::outOpen(std::string& path)
+{
+	_tmpFd = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+
+	if (_tmpFd == -1)
+	{
+		if (errno == EEXIST)
+			throw std::runtime_error("temporary file already exists");
+		else
+			throw std::runtime_error("could not open file");
+	}
+}
+
+void	FileManeger::closeFile(int *fd)
+{
+	if (*fd != -1)
+	{
+		close(*fd);
+		*fd = -1;
+	}
 }

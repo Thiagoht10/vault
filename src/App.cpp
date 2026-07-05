@@ -3,6 +3,8 @@
 
 #include <utility>
 
+volatile sig_atomic_t App::_signalReceived = 0;
+
 App::App(IUserInterface& ui)
     :_ui(ui) {}
 
@@ -14,49 +16,60 @@ void    App::parseArgs(int argc, char *argv[])
     _fileManeger.setPath(argv[1]);
 }
 
-void    App::add(void)
+IUserInterface::InputResult App::add(void)
 {
-    Entry           entry;
-    
-    if (!_ui.askNewEntry(entry))
-        return ;
+    Entry                       entry;
+    IUserInterface::InputResult result;
+
+    result = _ui.askNewEntry(entry);
+    if (result != IUserInterface::INPUT_OK)
+        return result;
     
     _vault.addEntry(std::move(entry));
+    return IUserInterface::INPUT_OK;
 }
 
-void    App::show(void)
+IUserInterface::InputResult App::show(void)
 {
-    size_t index;
+    size_t                      index;
+    IUserInterface::InputResult result;
 
     if (_vault.size() == 0)
     {
         _message = "vault is empty";
-        return;
+        return IUserInterface::INPUT_OK;
     }
     _ui.showEntryList(_vault);
-    if (!_ui.askEntryIndex(index, _vault))
-        return;
-    _ui.showEntryTemporarily(_vault.getEntry(index));
+    result = _ui.askEntryIndex(index, _vault);
+    if (result != IUserInterface::INPUT_OK)
+        return result;
+    return _ui.showEntryTemporarily(_vault.getEntry(index));
 }
 
-void    App::del(void)
+IUserInterface::InputResult App::del(void)
 {
-    std::string input;
-    size_t      index;
+    size_t                          index;
+    IUserInterface::InputResult     result;
+    IUserInterface::ConfirmationInput confirmation;
 
     _ui.showEntryList(_vault);
-    if (!_ui.askEntryIndex(index, _vault))
-        return;
+    result = _ui.askEntryIndex(index, _vault);
+    if (result != IUserInterface::INPUT_OK)
+        return result;
     
-    if (_ui.askConfirmation(_vault.getEntry(index)))
+    confirmation = _ui.askConfirmation(_vault.getEntry(index));
+    if (confirmation.result != IUserInterface::INPUT_OK)
+        return confirmation.result;
+    if (confirmation.confirmed)
     {
         if (!_vault.removeEntry(index))
         {
-            _ui.showError("invalid index");
-            return;
+            _message = "invalid input";
+            return IUserInterface::INPUT_INVALID;
         }
         _message = "credential removed";
     }
+    return IUserInterface::INPUT_OK;
 }
 
 bool    App::checkPassword(void)
@@ -70,12 +83,37 @@ bool    App::checkPassword(void)
     return true;
 }
 
+void    App::signalHandler(int sig)
+{
+    _signalReceived = sig;
+}
+
+void    App::setupSignal(void)
+{
+    struct sigaction    sa;
+
+    sa.sa_handler = App::signalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+}
+
+bool    App::shouldStop(void)
+{
+    return (_signalReceived != 0);
+}
+
 void    App::run(int argc, char *argv[])
 {
     EncryptedData   data;
     SecureBuffer    plaintext;
-    IUserInterface::MenuAction  menu;
+    IUserInterface::MenuInput   input;
+    IUserInterface::InputResult passwordInput;
+    IUserInterface::InputResult actionResult;
 
+    setupSignal();
     parseArgs(argc, argv);
     if (_fileManeger.ifExist())
     {
@@ -87,7 +125,11 @@ void    App::run(int argc, char *argv[])
             _masterPassword.erase();
             plaintext.erase();
 
-            _ui.askPassWord(_masterPassword, "please, put your password");
+            passwordInput = _ui.askPassWord(_masterPassword,
+                    "please, put your password");
+            if(passwordInput == IUserInterface::INPUT_INTERRUPTED
+                    || shouldStop())
+                return;
             if(_crypto.decrypt(plaintext, data, _masterPassword))
             {
                 _vault.deserialize(plaintext);
@@ -112,8 +154,16 @@ void    App::run(int argc, char *argv[])
             _masterPassword.erase();
             _checkPassword.erase();
 
-            _ui.askPassWord(_masterPassword, "please, put your password");
-            _ui.askPassWord(_checkPassword, "\nplease, confirm your password");
+            passwordInput = _ui.askPassWord(_masterPassword,
+                    "please, put your password");
+            if(passwordInput == IUserInterface::INPUT_INTERRUPTED
+                    || shouldStop())
+                return;
+            passwordInput = _ui.askPassWord(_checkPassword,
+                    "\nplease, confirm your password");
+            if(passwordInput == IUserInterface::INPUT_INTERRUPTED
+                    || shouldStop())
+                return;
             if (checkPassword())
                 unlocked = true;
             else
@@ -128,20 +178,30 @@ void    App::run(int argc, char *argv[])
         }
     }
 
-    while(1)
+    while(!shouldStop())
     {
-        menu = _ui.askMainMenuAction(_message);
+        actionResult = IUserInterface::INPUT_OK;
+        input = _ui.askMainMenuAction(_message);
         _message.erase();
-        if(menu == IUserInterface::ACTION_ADD)
-            add();
-        else if(menu == IUserInterface::ACTION_SHOW)
-            show();
-        else if(menu == IUserInterface::ACTION_DELETE)
-            del();
-        else if(menu == IUserInterface::ACTION_EXIT)
+        if (input.result == IUserInterface::INPUT_INTERRUPTED)
+            break;
+        if(input.action == IUserInterface::ACTION_ADD)
+            actionResult = add();
+        else if(input.action == IUserInterface::ACTION_SHOW)
+            actionResult = show();
+        else if(input.action == IUserInterface::ACTION_DELETE)
+            actionResult = del();
+        else if(input.action == IUserInterface::ACTION_EXIT)
             break;
         else
-            std::cerr << "option not found" << std::endl;
+        {
+            if(!shouldStop())
+                _message = "option not found";
+        }
+        if (actionResult == IUserInterface::INPUT_INTERRUPTED)
+            break;
+        if (actionResult == IUserInterface::INPUT_INVALID)
+            _message = "invalid input";
     }
     _vault.serialize(plaintext);
     data = _crypto.encrypt(plaintext, _masterPassword);
