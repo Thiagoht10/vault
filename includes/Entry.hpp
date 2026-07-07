@@ -26,7 +26,6 @@ public:
 
     void    setService(const unsigned char* service);
     void    setUsername(const unsigned char* login);
-    void    setPassword(const std::string& password);
     void    setService(const unsigned char *service, std::size_t length);
     void    setUsername(const unsigned char *username, std::size_t length);
     void    setPassword(const unsigned char *password, std::size_t length);
@@ -39,7 +38,6 @@ public:
     size_t                  getUserNameSize(void) const;
 
     void    eraseField(void);
-    void    print(void) const;
 };
 
 #endif

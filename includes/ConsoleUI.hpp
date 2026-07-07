@@ -14,6 +14,8 @@ public:
 
     InputResult readHiddenInput(SecureBuffer& pass, std::string prompt);
     void        clearTerminal(void) const;
+    bool        getLine(std::string& input) const;
+    bool        readHiddenLine(SecureBuffer& input) const;
 
     MenuInput   askMainMenuAction(std::string& msg);
     InputResult askPassWord(SecureBuffer& pass, std::string prompt);
@@ -23,6 +25,7 @@ public:
 
     void        showEntryList(const Vault& valt) const;
     void        showEntryDetais(const Entry& entry) const;
+    InputResult showPasswordTemporarily(const Entry& entry) const;
     InputResult showEntryTemporarily(const Entry& entry) const;
     void        showError(std::string error) const;
     void        showMessage(std::string msg) const;

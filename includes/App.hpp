@@ -8,8 +8,10 @@
 #include "Vault.hpp"
 #include "TerminalEchoGuard.hpp"
 #include "IUserInterface.hpp"
+#include "PasswordPolicy.hpp"
 #include <cstring>
 #include <signal.h>
+
 
 class App
 {
@@ -22,13 +24,15 @@ private:
     SecureBuffer    _checkPassword;
     Vault           _vault;
     FileManeger     _fileManeger;
+    PasswordPolicy  _policy;
     std::string     _message;
 
     void    parseArgs(int argc, char *argv[]);
     IUserInterface::InputResult add(void);
     IUserInterface::InputResult show(void);
     IUserInterface::InputResult del(void);
-    bool    checkPassword(void);
+    bool    checkMatchPassword(void);
+    bool    checkPolicyPassword(const SecureBuffer& pass) const;
 
     static void     signalHandler(int sig);
     void            setupSignal(void);

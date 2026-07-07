@@ -1,6 +1,6 @@
 #include "TerminalEchoGuard.hpp"
 
-TerminalEchoGuard::TerminalEchoGuard()
+TerminalEchoGuard::TerminalEchoGuard(bool disableCanonical)
     :_active(false)
 {
     termios newSettings;
@@ -10,6 +10,13 @@ TerminalEchoGuard::TerminalEchoGuard()
 
     newSettings = _oldSettings;
     newSettings.c_lflag &= ~ECHO;
+
+    if (disableCanonical)
+    {
+        newSettings.c_lflag &= ~ICANON;
+        newSettings.c_cc[VMIN] = 1;
+        newSettings.c_cc[VTIME] = 0;
+    }
 
     if (tcsetattr(STDIN_FILENO, TCSANOW, &newSettings))
         throw std::runtime_error("failure to change terminal settings");

@@ -30,9 +30,11 @@ const unsigned char*    SecureString::data(void) const
     return _buffer.data();
 }
 
-void    SecureString::readBytes(void)
+bool    SecureString::readBytes(void)
 {
-    _buffer.readBytes();
+    if (!_buffer.readBytes())
+        return false;
+    return true;
 }
 
 bool    SecureString::empty()

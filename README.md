@@ -17,6 +17,7 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - detect an incorrect password or corrupted file during decryption;
 - reject truncated or malformed encrypted vault files before using incomplete metadata;
 - reject serialized plaintext data that does not match the expected format;
+- enforce a basic master-password policy when creating a new vault;
 - hide the master password while it is being entered;
 - require password confirmation when creating a new vault;
 - hide and confirm credential passwords while they are being entered;
@@ -60,7 +61,7 @@ Pass the path of the file that will store the vault as an argument:
 ./vault my_vault.vault
 ```
 
-The program prompts for the master password without displaying it while it is being entered. When creating a new vault, the password must be typed twice and both entries must match. After initialization, the program shows the menu:
+The program prompts for the master password without displaying it while it is being entered. When creating a new vault, the password must pass the basic password policy, then be typed a second time for confirmation. After initialization, the program shows the menu:
 
 ```text
 1. add
@@ -69,13 +70,13 @@ The program prompts for the master password without displaying it while it is be
 0. exit
 ```
 
-Option `2` lists the available indexes and service names, asks which entry should be shown, and then reveals the selected credential temporarily. The terminal UI uses the terminal alternate screen for this reveal: pressing Enter returns to the previous screen so the credential is not left visible in the normal terminal scrollback.
+Option `2` lists the available indexes and service names, asks which entry should be shown, and then displays the selected credential temporarily with the password masked. The user can choose whether to reveal the password. The terminal UI uses the terminal alternate screen for this view: pressing Enter after a reveal returns to the previous screen so the credential is not left visible in the normal terminal scrollback.
 
 Option `3` lists the available indexes and service names, then asks which entry should be deleted. Typing `/cancel` returns to the main menu without deleting anything.
 
 If the specified file already exists, it is read and decrypted with the master password. The program allows up to three password attempts. A different password, or changes to the encrypted bytes, causes retry messages first and then the `wrong password or corrupted file` error after the final failed attempt.
 
-If the file does not exist, a new vault is created after a confirmed master password is accepted. The password and confirmation must both be non-empty and must match. Invalid input can be retried up to three times; after the final failed attempt, the program exits with `bad password`.
+If the file does not exist, a new vault is created after a confirmed master password is accepted. The master password must be between 15 and 64 bytes and must not match the small built-in list of common passwords. The password and confirmation must match. Invalid input can be retried up to three times; after the final failed attempt, the program exits with `bad password`.
 
 If terminal input is interrupted, the current unfinished input operation is cancelled. A partially filled new credential is not added to the vault. If a previous action has already completed, the application leaves the main loop and persists the current vault state before exiting.
 
@@ -147,6 +148,12 @@ Derived keys use the private `Crypto::SecureKey` class, which stores the key byt
 
 Sensitive buffer comparisons use `sodium_memcmp()` through `SecureBuffer::operator==()`. Password confirmation paths compare `SecureBuffer` values instead of manually checking byte by byte.
 
+### Master password policy
+
+`PasswordPolicy` is applied when creating a new vault. It rejects empty passwords, passwords shorter than 15 bytes, passwords longer than 64 bytes, and passwords that exactly match a small built-in list of common weak values such as `password`, `123456`, `qwerty`, `admin`, and `senha123`.
+
+The policy is intentionally basic. It does not require character-composition rules such as uppercase letters, numbers, or symbols, and it does not estimate entropy or check leaked-password databases. Existing vaults are still opened by authentication against the encrypted file, and stored credential passwords are not forced through this master-password policy.
+
 ### Reading passwords
 
 `ConsoleUI::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading passwords. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
@@ -155,7 +162,7 @@ This protection is applied to the master password requested during initializatio
 
 ### Showing credentials
 
-`ConsoleUI::showEntryTemporarily()` displays a selected entry on the terminal alternate screen. This is a visual protection: when the user presses Enter, the program leaves the alternate screen and returns to the previous menu view. In normal terminal use, this avoids leaving the revealed username and password in the main scrollback.
+`ConsoleUI::showEntryTemporarily()` displays a selected entry on the terminal alternate screen with the password masked, then asks whether the password should be revealed. This is a visual protection: when the user presses Enter after a reveal, the program leaves the alternate screen and returns to the previous menu view. In normal terminal use, this avoids leaving the revealed username and password in the main scrollback.
 
 Credential fields are written to the terminal with explicit byte lengths from the stored `Entry`, instead of relying on C-string termination. This avoids truncating a stored field at the first `'\0'` byte when it is intentionally revealed.
 
@@ -182,6 +189,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 │   ├── Entry.hpp
 │   ├── FileManeger.hpp
 │   ├── IUserInterface.hpp
+│   ├── PasswordPolicy.hpp
 │   ├── SecureBuffer.hpp
 │   ├── SecureString.hpp
 │   ├── TerminalEchoGuard.hpp
@@ -192,6 +200,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 │   ├── Crypto.cpp
 │   ├── Entry.cpp
 │   ├── FileManeger.cpp
+│   ├── PasswordPolicy.cpp
 │   ├── SecureBuffer.cpp
 │   ├── SecureString.cpp
 │   ├── TerminalEchoGuard.cpp
@@ -207,6 +216,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 - `Vault`: stores credentials, exposes read-only access for UI rendering, and converts between objects and serialized text;
 - `Crypto`: derives the key, encrypts, and decrypts;
 - `FileManeger`: reads and writes the vault's binary format;
+- `PasswordPolicy`: validates the master password when creating a new vault;
 - `SecureBuffer`: owns sensitive byte buffers and erases them with `sodium_memzero()`;
 - `SecureString`: stores text fields on top of `SecureBuffer`;
 - `TerminalEchoGuard`: temporarily disables terminal echo and restores its configuration through RAII.
@@ -220,6 +230,6 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 - encrypted file metadata is validated before variable-sized allocations, but the binary format still stores native integer representations and is intentionally tied to the current format version and KDF settings;
 - `SecureBuffer` uses `sodium_malloc()` and `sodium_mlock()`, but this cannot protect secrets after they are intentionally written to the terminal or copied by external system components;
 - the binary format uses the machine's native types and representation, so it is not portable across all architectures;
-- there is no password-strength policy yet, and protection against offline brute-force depends on the master password strength plus the `crypto_pwhash` cost.
+- the master-password policy is basic and uses only length limits plus a small common-password blocklist, so protection against offline brute-force still depends heavily on the master password strength plus the `crypto_pwhash` cost.
 
 Use this project as an educational implementation, not as a replacement for an audited password manager.

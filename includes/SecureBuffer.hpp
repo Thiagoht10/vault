@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <unistd.h>
 
 class SecureBuffer
 {
@@ -34,7 +35,9 @@ public:
 	const char*             c_data(void) const;
 	const unsigned char*    data(void) const;
 	unsigned char*          data(void);
-	void                    readBytes(void);
+	bool                    readBytes(void);
+	void                    pushByte(unsigned char byte);
+	void                    popByte(void);
 	void                    assign(const unsigned char* data, std::size_t length);
 	void                    assign(const std::string& data);
 	void                    swap(SecureBuffer& other) noexcept;
@@ -47,9 +50,9 @@ public:
 	void                    append(const char* str);
 	void                    append(const char* str, std::size_t length);
 
-    bool                    operator==(const char* str);
-    bool                    operator==(const SecureBuffer& other);
-    bool                    operator!=(const SecureBuffer& other);
+    bool                    operator==(const char* str) const;
+    bool                    operator==(const SecureBuffer& other) const;
+    bool                    operator!=(const SecureBuffer& other) const;
 };
 
 

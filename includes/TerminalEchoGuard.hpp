@@ -12,7 +12,7 @@ private:
     bool    _active;
 
 public:
-    TerminalEchoGuard(void);
+    TerminalEchoGuard(bool disableCanonical);
     ~TerminalEchoGuard();
 };
 

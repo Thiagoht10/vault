@@ -72,13 +72,39 @@ IUserInterface::InputResult App::del(void)
     return IUserInterface::INPUT_OK;
 }
 
-bool    App::checkPassword(void)
+bool    App::checkMatchPassword(void)
 {
-    if(_masterPassword.empty() || _checkPassword.empty())
-        return false;
-
     if (_masterPassword != _checkPassword)
         return false;
+
+    return true;
+}
+
+bool    App::checkPolicyPassword(const SecureBuffer& pass) const
+{
+    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_EMPTY)
+    {
+        _ui.showError("empty password");
+        return false;
+    }
+    
+    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_TOO_SHORT)
+    {
+        _ui.showError("password too short");
+        return false;
+    }
+
+    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_TOO_LONG)
+    {
+        _ui.showError("password too long");
+        return false;
+    }
+    
+    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_TOO_COMMON)
+    {
+        _ui.showError("password too common");
+        return false;
+    }
 
     return true;
 }
@@ -156,18 +182,23 @@ void    App::run(int argc, char *argv[])
 
             passwordInput = _ui.askPassWord(_masterPassword,
                     "please, put your password");
-            if(passwordInput == IUserInterface::INPUT_INTERRUPTED
+            if (passwordInput == IUserInterface::INPUT_INTERRUPTED
                     || shouldStop())
                 return;
+
             passwordInput = _ui.askPassWord(_checkPassword,
                     "\nplease, confirm your password");
             if(passwordInput == IUserInterface::INPUT_INTERRUPTED
                     || shouldStop())
                 return;
-            if (checkPassword())
-                unlocked = true;
-            else
-                _ui.showError("bad password, try again");
+            
+            if (checkPolicyPassword(_masterPassword))
+            {
+                if (checkMatchPassword())
+                    unlocked = true;
+                else
+                    _ui.showError("bad password, try again");
+            }
             
             if (attempt + 1 == 3 && !unlocked)
             {

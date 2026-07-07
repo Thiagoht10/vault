@@ -93,13 +93,6 @@ void    Entry::eraseField(void)
     _password.erase();
 }
 
-void    Entry::print(void) const
-{
-    std::cout << "Service: " << _service.data() << std::endl;
-    std::cout << "Username: " << _username.data() << std::endl;
-    std::cout << "Password: " << _password.data() << std::endl;
-}
-
 size_t  Entry::getPasswordSize(void) const
 {
     return _password.size();

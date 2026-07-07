@@ -22,7 +22,7 @@ public:
     void                    swap(SecureString& other);
     void                    erase(void);
     const unsigned char*    data(void) const;
-    void                    readBytes(void);
+    bool                    readBytes(void);
     bool                    empty(void);
     bool                    operator==(const char* str);    
 };

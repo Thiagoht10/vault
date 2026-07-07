@@ -105,7 +105,7 @@ const char*  SecureBuffer::c_data(void) const
     return reinterpret_cast<const char*>(_buffer);
 }
 
-void    SecureBuffer::readBytes(void)
+bool    SecureBuffer::readBytes(void)
 {
     char    c;
 
@@ -113,16 +113,39 @@ void    SecureBuffer::readBytes(void)
         clear(_buffer, _capacity);
     _sizeUsed = 0;
 
-    while(std::cin.get(c))
+    while(true)
     {
-        if(c == '\n')
-            return ;
-        if (_sizeUsed + 1 >= _capacity)
-            increaseSpace();
-        _buffer[_sizeUsed] = static_cast<unsigned char>(c);
-        _sizeUsed++;
-        _buffer[_sizeUsed] = '\0';
+        if (read(STDIN_FILENO, &c, 1) == 1)
+        {
+            if(c == '\n')
+                break;
+            if (_sizeUsed + 1 >= _capacity)
+                increaseSpace();
+            _buffer[_sizeUsed] = static_cast<unsigned char>(c);
+            _sizeUsed++;
+            _buffer[_sizeUsed] = '\0';
+        }
+        else
+            return false;
     }
+    return true;
+}
+
+void    SecureBuffer::pushByte(unsigned char byte)
+{
+    if (_sizeUsed + 1 >= _capacity)
+        increaseSpace();
+    _buffer[_sizeUsed] = byte;
+    _sizeUsed++;
+    _buffer[_sizeUsed] = '\0';
+}
+
+void    SecureBuffer::popByte(void)
+{
+    if (_sizeUsed == 0 || !_buffer)
+        return;
+    _sizeUsed--;
+    _buffer[_sizeUsed] = '\0';
 }
 
 void    SecureBuffer::clear(unsigned char* data, std::size_t length)
@@ -294,7 +317,7 @@ bool    SecureBuffer::equal(const SecureBuffer& a, const SecureBuffer& b) const
     return true;
 }
 
-bool    SecureBuffer::operator==(const char* str)
+bool    SecureBuffer::operator==(const char* str) const
 {
     SecureBuffer tmp;
 
@@ -305,14 +328,14 @@ bool    SecureBuffer::operator==(const char* str)
     return true;
 }
 
-bool    SecureBuffer::operator==(const SecureBuffer& other)
+bool    SecureBuffer::operator==(const SecureBuffer& other) const
 {
     if (!equal(*this, other))
         return false;
     return true;
 }
 
-bool    SecureBuffer::operator!=(const SecureBuffer& other)
+bool    SecureBuffer::operator!=(const SecureBuffer& other) const
 {
     if (operator==(other))
         return false;

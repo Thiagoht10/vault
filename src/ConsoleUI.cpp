@@ -1,14 +1,33 @@
 #include "ConsoleUI.hpp"
 
+#include <unistd.h>
+
+namespace
+{
+    void    consumeEscapeSequence(void)
+    {
+        char    seq;
+
+        if (read(STDIN_FILENO, &seq, 1) != 1)
+            return;
+        if (seq == '[')
+        {
+            while (read(STDIN_FILENO, &seq, 1) == 1
+                    && (seq < '@' || seq > '~'))
+                ;
+        }
+        else if (seq == 'O')
+            read(STDIN_FILENO, &seq, 1);
+    }
+}
+
 IUserInterface::InputResult ConsoleUI::readHiddenInput(SecureBuffer& pass,
         std::string prompt)
 {
     std::cout << prompt << "\n" << "> ";
+    std::cout.flush();
 
-    TerminalEchoGuard guard;
-
-    pass.readBytes();
-    if (!std::cin)
+    if (!readHiddenLine(pass))
     {
         std::cerr << "\n";
         return INPUT_INTERRUPTED;
@@ -21,6 +40,91 @@ void    ConsoleUI::clearTerminal(void) const
     std::cout << "\033[2J" << "\033[3J" << "\033[2H";
 
     std::cout.flush();
+}
+
+bool    ConsoleUI::getLine(std::string& input) const
+{
+    char    c;
+    bool    completed;
+
+    input.clear();
+    completed = false;
+    std::cout.flush();
+    {
+        TerminalEchoGuard guard(true);
+        while (read(STDIN_FILENO, &c, 1) == 1)
+        {
+            if (c == '\n' || c == '\r')
+            {
+                completed = true;
+                break;
+            }
+
+            if (c == 127 || c == '\b')
+            {
+                if (!input.empty())
+                {
+                    input.erase(input.size() - 1);
+                    std::cout << "\b \b";
+                    std::cout.flush();
+                }
+                continue;
+            }
+
+            if (c == '\033')
+            {
+                consumeEscapeSequence();
+                continue;
+            }
+            if (c < 32 || c == 127)
+                continue;
+            input += c;
+            std::cout << c;
+            std::cout.flush();
+        }
+    }
+    std::cout << '\n';
+    return completed || !input.empty();
+}
+
+bool    ConsoleUI::readHiddenLine(SecureBuffer& input) const
+{
+    char    c;
+    bool    completed;
+
+    input.erase();
+    completed = false;
+    {
+        TerminalEchoGuard guard(true);
+        while (true)
+        {
+            if (read(STDIN_FILENO, &c, 1) == 1)
+            {
+                if (c == '\n' || c == '\r')
+                {
+                    completed = true;
+                    break;
+                }
+                if (c == 127 || c == '\b')
+                {
+                    input.popByte();
+                    continue;
+                }
+                if (c == '\033')
+                {
+                    consumeEscapeSequence();
+                    continue;
+                }
+                if (c < 32 || c == 127)
+                    continue;
+                input.pushByte(static_cast<unsigned char>(c));
+            }
+            else
+                return false;
+        }
+    }
+    std::cout << '\n';
+    return completed || !input.empty();
 }
 
 IUserInterface::MenuInput   ConsoleUI::askMainMenuAction(std::string& msg)
@@ -36,10 +140,12 @@ IUserInterface::MenuInput   ConsoleUI::askMainMenuAction(std::string& msg)
     std::cout << "1. add" << std::endl;
     std::cout << "2. show" << std::endl;
     std::cout << "3. delete" << std::endl;
-    std::cout << "0. exit\n" << "\n> ";
+    std::cout << "0. exit\n";
     input.result = INPUT_OK;
     input.action = ACTION_INVALID;
-    if (!std::getline(std::cin, option))
+
+    std::cout << "\n> ";
+    if (!getLine(option))
     {
         std::cerr << "\n";
         input.result = INPUT_INTERRUPTED;
@@ -87,35 +193,53 @@ void    ConsoleUI::showEntryDetais(const Entry& entry) const
     std::cout << "username: ";
     std::cout.write(reinterpret_cast<const char*>(entry.getUsername()),
             entry.getUserNameSize()) << "\n";
+    std::cout << "password: ********" << std::endl;
+    std::cout << "------------------" << std::endl;
+}
+
+IUserInterface::InputResult ConsoleUI::showPasswordTemporarily(const Entry& entry) const
+{
+    std::string tmp;
+
+    std::cout << "\033[2J\033[H";
+
     std::cout << "password: ";
     std::cout.write(reinterpret_cast<const char*>(entry.getPassword()),
             entry.getPasswordSize()) << "\n";
-    std::cout << "------------------" << std::endl;
+
+    std::cout << "\npress Enter to continue...";
+    std::cout.flush();
+    if (!getLine(tmp))
+        return INPUT_INTERRUPTED;
+
+    std::cout << "\033[2J\033[H";
+    std::cout.flush();
+    return INPUT_OK;
 }
 
 IUserInterface::InputResult ConsoleUI::showEntryTemporarily(const Entry& entry) const
 {
-    std::string tmp;
+    InputResult result;
+    std::string input;
 
     std::cout << "\033[?1049h"; // entra na tela temporaria
     std::cout << "\033[2J\033[H";
 
     showEntryDetais(entry);
-
-    std::cout << "\npress Enter to continue...";
+    std::cout << "\ndo you want to reveal the password?" << std::endl;
+    std::cout << "Y to yes\n> ";
     std::cout.flush();
-    if (!std::getline(std::cin, tmp))
-    {
-        std::cout << "\033[2J\033[H";
-        std::cout << "\033[?1049l";
-        std::cout.flush();
-        return INPUT_INTERRUPTED;
-    }
+    if (!getLine(input))
+        result = INPUT_INTERRUPTED;
+    else if (input == "Y" || input == "y")
+        result = showPasswordTemporarily(entry);
+    else
+        result = INPUT_OK;
 
     std::cout << "\033[2J\033[H";
     std::cout << "\033[?1049l";
     std::cout.flush();
-    return INPUT_OK;
+    return result;
 }
 
 IUserInterface::InputResult ConsoleUI::askEntryIndex(size_t& index,
@@ -128,7 +252,7 @@ IUserInterface::InputResult ConsoleUI::askEntryIndex(size_t& index,
     std::cout << "please, select an index" << std::endl;
     std::cout << "type /cancel to cancel\n> ";
 
-    if (!std::getline(std::cin, input))
+    if (!getLine(input))
     {
         std::cerr << "\n";
         return INPUT_INTERRUPTED;
@@ -174,10 +298,10 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 
     while(1)
     {
-        std::cout << "service: \n" << "> ";
         tmp.erase();
-        tmp.readBytes();
-        if (!std::cin)
+        std::cout << "service: \n" << "> ";
+        std::cout.flush();
+        if (!tmp.readBytes())
         {
             std::cerr << "\n";
             return INPUT_INTERRUPTED;
@@ -189,18 +313,18 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
         }
         if(tmp == "/cancel")
             return INPUT_CANCEL;
-        
-        entry.setService(tmp.data());
+
+        entry.setService(tmp.data(), tmp.size());
         tmp.erase();
         break;
     }
 
     while (1)
     {
-        std::cout << "username: \n" << "> ";
         tmp.erase();
-        tmp.readBytes();
-        if (!std::cin)
+        std::cout << "username: \n" << "> ";
+        std::cout.flush();
+        if (!tmp.readBytes())
         {
             std::cerr << "\n";
             return INPUT_INTERRUPTED;
@@ -212,8 +336,8 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
         }
         if(tmp == "/cancel")
             return INPUT_CANCEL;
-        
-        entry.setUsername(tmp.data());
+
+        entry.setUsername(tmp.data(), tmp.size());
         tmp.erase();
         break;
     }
@@ -229,6 +353,7 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 
             if (readHiddenInput(password, "password:") == INPUT_INTERRUPTED)
                 return INPUT_INTERRUPTED;
+            
             if(password == "/cancel")
                 return INPUT_CANCEL;
 
@@ -241,6 +366,7 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
             if (readHiddenInput(checkPass, "\nplease, confirm your password")
                     == INPUT_INTERRUPTED)
                 return INPUT_INTERRUPTED;
+            
             if(checkPass == "/cancel")
                 return INPUT_CANCEL;
 
@@ -279,7 +405,7 @@ IUserInterface::ConfirmationInput ConsoleUI::askConfirmation(const Entry& entry)
     while (option != "N" && option != "n" && option != "Y" && option != "y")
     {
         std::cout << "> ";
-        if (!std::getline(std::cin, option))
+        if (!getLine(option))
         {
             std::cerr << "\n";
             input.result = INPUT_INTERRUPTED;
