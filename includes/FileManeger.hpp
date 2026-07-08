@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <sys/file.h>
 #include "Crypto.hpp"
 
 static const std::size_t MAX_VAULT_SIZE = 10 * 1024 * 1024;
@@ -16,6 +17,7 @@ private:
     std::string _path;
     int         _fd;
     int         _tmpFd;
+    int         _lockFd;
 
     void    syncFile(int fd) const;
     void    syncDirectory(const std::filesystem::path& path) const;
@@ -36,6 +38,8 @@ public:
     void            writeEncrypted(const EncryptedData& data);
     bool            ifExist(void) const;
     void            setPath(const std::string pathname);
+    void            openLockFile(void);
+    void            closeLockFile(void);
 };
 
 

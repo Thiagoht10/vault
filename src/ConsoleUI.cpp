@@ -2,6 +2,9 @@
 
 #include <unistd.h>
 
+#define RED "\033[31m"
+#define RESET "\033[0m"
+
 namespace
 {
     void    consumeEscapeSequence(void)
@@ -274,7 +277,7 @@ IUserInterface::InputResult ConsoleUI::askEntryIndex(size_t& index,
 
     if (!vault.isValidIndex(index))
     {
-        std::cerr << "\ninvalid index\n" << std::endl;
+        showError("invalid index");
         return INPUT_INVALID;
     }
     return INPUT_OK;
@@ -282,7 +285,7 @@ IUserInterface::InputResult ConsoleUI::askEntryIndex(size_t& index,
 
 void    ConsoleUI::showError(std::string error) const
 {
-    std::cerr << "\n" << error << "\n" << std::endl;
+    std::cerr << "\n" << RED << error << RESET << "\n" << std::endl;
 }
 
 
@@ -308,7 +311,7 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
         }
         if(tmp.empty())
         {
-            std::cerr << "can't have empyt inputs\n" << std::endl;
+            showError("can't have empty inputs");
             continue ;
         }
         if(tmp == "/cancel")
@@ -331,7 +334,7 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
         }
         if (tmp.empty())
         {
-            std::cerr << "can't have empyt inputs\n" << std::endl;
+            showError("can't have empty inputs");
             continue ;
         }
         if(tmp == "/cancel")
@@ -359,7 +362,7 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 
             if (password.empty())
             {
-                std::cerr << "can't have empyt inputs\n" << std::endl;
+                showError("can't have empty inputs");
                 continue;
             }
 
@@ -374,7 +377,7 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
                 unlocked = true;
             else
             {
-                std::cerr << "\n\npassword not match" << std::endl;
+                showError("password not match");
                 if (attempt < 3)
                     std::cerr << "you have " << (3 - attempt - 1) << " attempts\n" << std::endl;
                 password.erase();

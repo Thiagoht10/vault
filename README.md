@@ -17,6 +17,7 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - detect an incorrect password or corrupted file during decryption;
 - reject truncated or malformed encrypted vault files before using incomplete metadata;
 - reject serialized plaintext data that does not match the expected format;
+- prevent two cooperative `vault` processes from opening the same vault file at the same time;
 - enforce a basic master-password policy when creating a new vault;
 - hide the master password while it is being entered;
 - require password confirmation when creating a new vault;
@@ -80,6 +81,15 @@ If the file does not exist, a new vault is created after a confirmed master pass
 
 If terminal input is interrupted, the current unfinished input operation is cancelled. A partially filled new credential is not added to the vault. If a previous action has already completed, the application leaves the main loop and persists the current vault state before exiting.
 
+When a vault is opened or created, the program also opens a lock file next to it using the same path plus `.lock`. For example:
+
+```text
+my_vault.vault
+my_vault.vault.lock
+```
+
+The `.lock` file is used with `flock()` to reject a second cooperative `vault` process while the first one is still running. The file can remain on disk after the program exits; the active lock is tied to the open file descriptor, not to the mere existence of the `.lock` file.
+
 ## How it works
 
 When a vault is opened, the data follows this flow:
@@ -110,7 +120,13 @@ list of Entry objects
 
 `FileManeger::readEncrypted()` and `FileManeger::writeEncrypted()` use POSIX file descriptors for the encrypted vault format. Reads go through `readFull()`, which keeps reading until the requested field is complete and rejects truncated files before the field is used. Writes go through `writeFull()`, which keeps writing until the requested buffer is complete or reports an error.
 
-`FileManeger::writeEncrypted()` writes encrypted data to a temporary file next to the target vault. The temporary file is created with POSIX `open()` using `O_CREAT | O_EXCL` and mode `0600`, so it is owner-only from creation and an existing temporary file is not overwritten. After the encrypted bytes are fully written, the file descriptor is synchronized with `fsync()`, closed, moved into place with `std::filesystem::rename()`, and the parent directory is synchronized so the rename is persisted more reliably after crashes or power loss.
+`FileManeger::writeEncrypted()` writes encrypted data to a temporary file next to the target vault. The temporary file uses the target path plus `.tmp` and is created with POSIX `open()` using `O_CREAT | O_EXCL` and mode `0600`, so it is owner-only from creation and an existing temporary file is not overwritten. After the encrypted bytes are fully written, the file descriptor is synchronized with `fsync()`, closed, moved into place with `std::filesystem::rename()`, and the parent directory is synchronized so the rename is persisted more reliably after crashes or power loss.
+
+### File locking
+
+`FileManeger::openLockFile()` creates or opens a lock file using the vault path plus `.lock`, then applies an exclusive non-blocking `flock()` lock to that file. The lock file is opened with mode `0600`, and the file descriptor stays open while the application is using the vault. If another cooperative `vault` process already holds the lock, the second process exits with a lock error instead of reading or writing the same vault concurrently.
+
+`FileManeger::closeLockFile()` releases the lock and closes the lock file descriptor when the application exits. The `.lock` file itself is not removed automatically, because removing lock files can create races between processes. A leftover `.lock` file is normal and does not mean the vault is still locked.
 
 ### `EncryptedData` structure
 
@@ -150,7 +166,7 @@ Sensitive buffer comparisons use `sodium_memcmp()` through `SecureBuffer::operat
 
 ### Master password policy
 
-`PasswordPolicy` is applied when creating a new vault. It rejects empty passwords, passwords shorter than 15 bytes, passwords longer than 64 bytes, and passwords that exactly match a small built-in list of common weak values such as `password`, `123456`, `qwerty`, `admin`, and `senha123`.
+`PasswordPolicy` is applied when creating a new vault. It rejects empty passwords, passwords shorter than 15 bytes, passwords longer than 64 bytes, passwords that exactly match a small built-in list of common weak values such as `password`, `123456`, `qwerty`, `admin`, and `senha123`, passwords with 3 repeated characters in a row, and passwords with a 4-character ascending or descending sequence.
 
 The policy is intentionally basic. It does not require character-composition rules such as uppercase letters, numbers, or symbols, and it does not estimate entropy or check leaked-password databases. Existing vaults are still opened by authentication against the encrypted file, and stored credential passwords are not forced through this master-password policy.
 
@@ -223,13 +239,21 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 ## Security limitations
 
-- service names are shown as readable text in the terminal when listing entries;
+These points are security boundaries of the current implementation:
+
+- service names are shown as readable text in the terminal when listing entries, so service names should not be treated as hidden metadata;
 - option `2` can reveal usernames and passwords in the terminal; the alternate screen hides them from the normal scrollback in typical terminal use, but it cannot guarantee secure deletion from the terminal emulator or external capture tools;
-- vault writes use a fixed `.tmp` path and do not use file locking, so concurrent writers are still not supported;
-- if a write fails after the temporary file is created, the `.tmp` file may remain and must be removed before the next save attempt;
-- encrypted file metadata is validated before variable-sized allocations, but the binary format still stores native integer representations and is intentionally tied to the current format version and KDF settings;
+- file locking uses advisory `flock()` semantics, so it prevents concurrent access only between cooperative processes that follow the same lock protocol;
 - `SecureBuffer` uses `sodium_malloc()` and `sodium_mlock()`, but this cannot protect secrets after they are intentionally written to the terminal or copied by external system components;
-- the binary format uses the machine's native types and representation, so it is not portable across all architectures;
-- the master-password policy is basic and uses only length limits plus a small common-password blocklist, so protection against offline brute-force still depends heavily on the master password strength plus the `crypto_pwhash` cost.
+- the master-password policy is basic and local-only, so protection against offline brute-force still depends heavily on the master password strength plus the `crypto_pwhash` cost.
+
+## Operational notes
+
+These points are expected behavior or format constraints, not security vulnerabilities:
+
+- lock files use the vault path plus `.lock` and may remain on disk after the program exits; this is expected and does not mean the vault is still locked;
+- vault writes use a fixed `.tmp` path while saving; if a write fails before `rename()`, the `.tmp` file may remain and must be removed before the next save attempt;
+- encrypted file metadata is validated before variable-sized allocations, but the binary format stores native integer representations and is intentionally tied to the current format version and KDF settings;
+- the binary format uses the machine's native types and representation, so it is not portable across all architectures.
 
 Use this project as an educational implementation, not as a replacement for an audited password manager.

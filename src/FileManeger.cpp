@@ -5,10 +5,10 @@
 #include <unistd.h>
 
 FileManeger::FileManeger()
-	: _fd(-1), _tmpFd(-1) {}
+	: _fd(-1), _tmpFd(-1), _lockFd(-1) {}
 
 FileManeger::FileManeger(const std::string pathname)
-	    :_path(pathname), _fd(-1), _tmpFd(-1) {}
+	    :_path(pathname), _fd(-1), _tmpFd(-1), _lockFd(-1) {}
 
 FileManeger::~FileManeger()
 {
@@ -232,5 +232,34 @@ void	FileManeger::closeFile(int *fd)
 	{
 		close(*fd);
 		*fd = -1;
+	}
+}
+
+void	FileManeger::openLockFile(void)
+{
+	std::string	lockPath;
+
+	lockPath = _path + ".lock";
+
+	_lockFd = open(lockPath.c_str(), O_RDWR | O_CREAT, 0600);
+
+	if (_lockFd == -1)
+		throw std::runtime_error("could not open lock file");
+
+	if (flock(_lockFd, LOCK_EX | LOCK_NB) == -1)
+	{
+		close(_lockFd);
+		_lockFd = -1;
+		throw std::runtime_error("failure to lock file");
+	}
+}
+
+void	FileManeger::closeLockFile(void)
+{
+	if (_lockFd != -1)
+	{
+		flock(_lockFd, LOCK_UN);
+		close(_lockFd);
+		_lockFd = -1;
 	}
 }

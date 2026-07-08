@@ -29,6 +29,7 @@ clean:
 
 fclean: clean
 	rm -rf $(NAME)
+	rm -rf *.lock
 
 re: fclean all
 

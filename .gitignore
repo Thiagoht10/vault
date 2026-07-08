@@ -2,5 +2,6 @@ obj/.o
 obj
 AGENTS.md
 vault
-vault.enc
+*.enc
 .vscode/
+*.lock

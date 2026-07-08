@@ -8,12 +8,18 @@ volatile sig_atomic_t App::_signalReceived = 0;
 App::App(IUserInterface& ui)
     :_ui(ui) {}
 
+App::~App()
+{
+    _fileManeger.closeLockFile();
+}
+
 void    App::parseArgs(int argc, char *argv[])
 {
     if (argc < 2)
         throw std::runtime_error("wrong number argument");
 
     _fileManeger.setPath(argv[1]);
+    _fileManeger.openLockFile();
 }
 
 IUserInterface::InputResult App::add(void)
@@ -82,31 +88,32 @@ bool    App::checkMatchPassword(void)
 
 bool    App::checkPolicyPassword(const SecureBuffer& pass) const
 {
-    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_EMPTY)
-    {
-        _ui.showError("empty password");
-        return false;
-    }
-    
-    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_TOO_SHORT)
-    {
-        _ui.showError("password too short");
-        return false;
-    }
+    PasswordPolicy::Result result = _policy.checkPasswordPolity(pass);
 
-    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_TOO_LONG)
+    switch (result)
     {
-        _ui.showError("password too long");
-        return false;
+        case PasswordPolicy::PW_OK:
+            return true;
+        case PasswordPolicy::PW_EMPTY:
+            _ui.showError("password cannot be empty");
+            return false;
+        case PasswordPolicy::PW_TOO_COMMON:
+            _ui.showError("password is too common");
+            return false;
+        case PasswordPolicy::PW_TOO_SHORT:
+            _ui.showError("password must be at least 15 characters");
+            return false;
+        case PasswordPolicy::PW_TOO_LONG:
+            _ui.showError("password must be at most 64 characters");
+            return false;
+        case PasswordPolicy::PW_REPEAT_CHAR:
+            _ui.showError("password cannot contain 3 repeated characters in a row");
+            return false;
+        case PasswordPolicy::PW_SEQUENCE_CHAR:
+            _ui.showError("password cannot contain a 4-character ascending or descending sequence");
+            return false;
     }
-    
-    if (_policy.checkPasswordPolity(pass) == PasswordPolicy::PW_TOO_COMMON)
-    {
-        _ui.showError("password too common");
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 void    App::signalHandler(int sig)
@@ -165,8 +172,11 @@ void    App::run(int argc, char *argv[])
             else
             {
                 if (attempt + 1 == 3)
+                {
+                    _masterPassword.erase();
+                    _checkPassword.erase();
                     throw std::runtime_error("wrong password or corrupted file");
-
+                }
                 _ui.showError("wrong password, try again");
             }
         }
@@ -202,7 +212,7 @@ void    App::run(int argc, char *argv[])
             
             if (attempt + 1 == 3 && !unlocked)
             {
-                _checkPassword.erase();
+                _masterPassword.erase();
                 _checkPassword.erase();
                 throw std::runtime_error("bad password");
             }

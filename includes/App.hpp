@@ -40,7 +40,7 @@ private:
 
 public:
     App(IUserInterface& ui);
-    ~App() = default;
+    ~App();
 
     void    run(int argc, char *argv[]);
 };
