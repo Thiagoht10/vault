@@ -12,11 +12,10 @@
 #include <cstring>
 #include <signal.h>
 
-
 class App
 {
 private:
-    static volatile sig_atomic_t    _signalReceived;
+    static volatile sig_atomic_t _signalReceived;
 
     IUserInterface& _ui;
     Crypto          _crypto;
@@ -27,23 +26,25 @@ private:
     PasswordPolicy  _policy;
     std::string     _message;
 
-    void    parseArgs(int argc, char *argv[]);
+    void parseArgs(int argc, char *argv[]);
     IUserInterface::InputResult add(void);
     IUserInterface::InputResult show(void);
     IUserInterface::InputResult del(void);
-    bool    checkMatchPassword(void);
-    bool    checkPolicyPassword(const SecureBuffer& pass) const;
+    IUserInterface::InputResult edit(void);
+    bool checkMatchPassword(void);
+    bool checkPolicyPassword(const SecureBuffer &pass) const;
 
-    static void     signalHandler(int sig);
-    void            setupSignal(void);
-    bool            shouldStop(void);
+    static void signalHandler(int sig);
+    void    setupSignal(void);
+    bool    shouldStop(void);
+    bool    openVault(EncryptedData &data, SecureBuffer &plaintext);
+    bool    createVault(void);
 
 public:
-    App(IUserInterface& ui);
+    App(IUserInterface &ui);
     ~App();
 
-    void    run(int argc, char *argv[]);
+    void run(int argc, char *argv[]);
 };
-
 
 #endif

@@ -78,6 +78,32 @@ IUserInterface::InputResult App::del(void)
     return IUserInterface::INPUT_OK;
 }
 
+IUserInterface::InputResult App::edit(void)
+{
+    size_t                              index;
+    IUserInterface::InputResult         result;
+    SecureBuffer                        password;
+    SecureBuffer                        username;
+
+    _ui.showEntryList(_vault);
+    result = _ui.askEntryIndex(index, _vault);
+    if (result != IUserInterface::INPUT_OK)
+        return result;
+
+    result = _ui.askEditEntry(password, username);
+    if (result != IUserInterface::INPUT_OK)
+        return result;
+
+    if (!_vault.editUsername(index, std::move(username)))
+        return IUserInterface::INPUT_INVALID;
+
+    if (!_vault.editPassword(index, std::move(password)))
+        return IUserInterface::INPUT_INVALID;
+
+    _message = "credential updated";
+    return IUserInterface::INPUT_OK;
+}
+
 bool    App::checkMatchPassword(void)
 {
     if (_masterPassword != _checkPassword)
@@ -138,19 +164,11 @@ bool    App::shouldStop(void)
     return (_signalReceived != 0);
 }
 
-void    App::run(int argc, char *argv[])
+bool    App::openVault(EncryptedData& data, SecureBuffer& plaintext)
 {
-    EncryptedData   data;
-    SecureBuffer    plaintext;
-    IUserInterface::MenuInput   input;
     IUserInterface::InputResult passwordInput;
-    IUserInterface::InputResult actionResult;
-
-    setupSignal();
-    parseArgs(argc, argv);
-    if (_fileManeger.ifExist())
-    {
-        bool    unlocked = false;
+    
+    bool    unlocked = false;
         data = _fileManeger.readEncrypted();
 
         for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
@@ -162,7 +180,7 @@ void    App::run(int argc, char *argv[])
                     "please, put your password");
             if(passwordInput == IUserInterface::INPUT_INTERRUPTED
                     || shouldStop())
-                return;
+                return false;
             if(_crypto.decrypt(plaintext, data, _masterPassword))
             {
                 _vault.deserialize(plaintext);
@@ -180,43 +198,68 @@ void    App::run(int argc, char *argv[])
                 _ui.showError("wrong password, try again");
             }
         }
-    }
-    else
-    {
-        bool    unlocked = false;
+    return true;
+}
 
-        for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
+bool    App::createVault(void)
+{
+    IUserInterface::InputResult passwordInput;
+    bool    unlocked = false;
+
+    for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
+    {
+        _masterPassword.erase();
+        _checkPassword.erase();
+
+        passwordInput = _ui.askPassWord(_masterPassword,
+                "please, put your password");
+        if(passwordInput == IUserInterface::INPUT_INTERRUPTED
+                || shouldStop())
+            return false;
+
+        passwordInput = _ui.askPassWord(_checkPassword,
+                "\nplease, confirm your password");
+        if(passwordInput == IUserInterface::INPUT_INTERRUPTED
+                || shouldStop())
+            return false;
+        
+        if (checkPolicyPassword(_masterPassword))
+        {
+            if (checkMatchPassword())
+                unlocked = true;
+            else
+                _ui.showError("bad password, try again");
+        }
+        
+        if (attempt + 1 == 3 && !unlocked)
         {
             _masterPassword.erase();
             _checkPassword.erase();
-
-            passwordInput = _ui.askPassWord(_masterPassword,
-                    "please, put your password");
-            if (passwordInput == IUserInterface::INPUT_INTERRUPTED
-                    || shouldStop())
-                return;
-
-            passwordInput = _ui.askPassWord(_checkPassword,
-                    "\nplease, confirm your password");
-            if(passwordInput == IUserInterface::INPUT_INTERRUPTED
-                    || shouldStop())
-                return;
-            
-            if (checkPolicyPassword(_masterPassword))
-            {
-                if (checkMatchPassword())
-                    unlocked = true;
-                else
-                    _ui.showError("bad password, try again");
-            }
-            
-            if (attempt + 1 == 3 && !unlocked)
-            {
-                _masterPassword.erase();
-                _checkPassword.erase();
-                throw std::runtime_error("bad password");
-            }
+            throw std::runtime_error("bad password");
         }
+    }
+    return true;
+}
+
+void    App::run(int argc, char *argv[])
+{
+    EncryptedData   data;
+    SecureBuffer    plaintext;
+    IUserInterface::MenuInput   input;
+    IUserInterface::InputResult actionResult;
+
+    setupSignal();
+    parseArgs(argc, argv);
+    
+    if (_fileManeger.ifExist())
+    {
+        if (!openVault(data, plaintext))
+            return;
+    }
+    else
+    {
+        if (!createVault())
+            return;
     }
 
     while(!shouldStop())
@@ -232,6 +275,8 @@ void    App::run(int argc, char *argv[])
             actionResult = show();
         else if(input.action == IUserInterface::ACTION_DELETE)
             actionResult = del();
+        else if (input.action == IUserInterface::ACTION_EDIT)
+            actionResult = edit();
         else if(input.action == IUserInterface::ACTION_EXIT)
             break;
         else

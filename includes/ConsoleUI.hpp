@@ -5,6 +5,7 @@
 #include "TerminalEchoGuard.hpp"
 #include <iostream>
 #include <string>
+#include <sys/select.h>
 
 class ConsoleUI : public IUserInterface
 {
@@ -16,12 +17,14 @@ public:
     void        clearTerminal(void) const;
     bool        getLine(std::string& input) const;
     bool        readHiddenLine(SecureBuffer& input) const;
+    bool        waitEnterOrTimeout(int secunds) const;
 
     MenuInput   askMainMenuAction(std::string& msg);
     InputResult askPassWord(SecureBuffer& pass, std::string prompt);
     InputResult askEntryIndex(size_t& index, const Vault& vault) const;
     InputResult askNewEntry(Entry& entry);
     ConfirmationInput   askConfirmation(const Entry& entry) const;
+    InputResult askEditEntry(SecureBuffer& pass, SecureBuffer& usr);
 
     void        showEntryList(const Vault& valt) const;
     void        showEntryDetais(const Entry& entry) const;

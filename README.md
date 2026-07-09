@@ -10,6 +10,7 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - list stored credential indexes and service names;
 - reveal a selected credential temporarily in the terminal;
 - delete a credential by index;
+- edit a credential username and password by index;
 - load an existing encrypted vault;
 - save the vault automatically when exiting through the menu;
 - preserve completed changes when input is interrupted after an action;
@@ -68,12 +69,15 @@ The program prompts for the master password without displaying it while it is be
 1. add
 2. show
 3. delete
+4. edit
 0. exit
 ```
 
-Option `2` lists the available indexes and service names, asks which entry should be shown, and then displays the selected credential temporarily with the password masked. The user can choose whether to reveal the password. The terminal UI uses the terminal alternate screen for this view: pressing Enter after a reveal returns to the previous screen so the credential is not left visible in the normal terminal scrollback.
+Option `2` lists the available indexes and service names, asks which entry should be shown, and then displays the selected credential temporarily with the password masked. The user can choose whether to reveal the password. The terminal UI uses the terminal alternate screen for this view: pressing Enter after a reveal, or waiting for the short reveal timeout, returns to the previous screen so the credential is not left visible in the normal terminal scrollback.
 
 Option `3` lists the available indexes and service names, then asks which entry should be deleted. Typing `/cancel` returns to the main menu without deleting anything.
+
+Option `4` lists the available indexes and service names, asks which entry should be edited, then asks for a new username and a new password. The new password is hidden while typed and must be confirmed before the credential is updated. Typing `/cancel` at the index or new-password prompt returns to the main menu without saving the edit.
 
 If the specified file already exists, it is read and decrypted with the master password. The program allows up to three password attempts. A different password, or changes to the encrypted bytes, causes retry messages first and then the `wrong password or corrupted file` error after the final failed attempt.
 
@@ -174,11 +178,11 @@ The policy is intentionally basic. It does not require character-composition rul
 
 `ConsoleUI::readHiddenInput()` uses `TerminalEchoGuard` to temporarily disable terminal echo before reading passwords. The guard saves the original settings and restores them in its destructor, including when reading throws an exception.
 
-This protection is applied to the master password requested during initialization, to the confirmation prompt used when creating a new vault, and to credential passwords added through option `1`. Credential passwords must also be typed twice and both entries must match. Service and username remain visible while they are being typed.
+This protection is applied to the master password requested during initialization, to the confirmation prompt used when creating a new vault, and to credential passwords added or edited through options `1` and `4`. Credential passwords must also be typed twice and both entries must match. Service and username remain visible while they are being typed.
 
 ### Showing credentials
 
-`ConsoleUI::showEntryTemporarily()` displays a selected entry on the terminal alternate screen with the password masked, then asks whether the password should be revealed. This is a visual protection: when the user presses Enter after a reveal, the program leaves the alternate screen and returns to the previous menu view. In normal terminal use, this avoids leaving the revealed username and password in the main scrollback.
+`ConsoleUI::showEntryTemporarily()` displays a selected entry on the terminal alternate screen with the password masked, then asks whether the password should be revealed. This is a visual protection: when the user presses Enter after a reveal, or after the short reveal timeout expires, the program leaves the alternate screen and returns to the previous menu view. In normal terminal use, this avoids leaving the revealed username and password in the main scrollback.
 
 Credential fields are written to the terminal with explicit byte lengths from the stored `Entry`, instead of relying on C-string termination. This avoids truncating a stored field at the first `'\0'` byte when it is intentionally revealed.
 
@@ -227,9 +231,9 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 
 - `App`: handles arguments, the master password, vault loading/saving, and the application flow;
 - `IUserInterface`: defines the UI operations used by `App`;
-- `ConsoleUI`: implements the current terminal prompts, hidden password input, menus, list rendering, and temporary credential reveal;
+- `ConsoleUI`: implements the current terminal prompts, hidden password input, menus, list rendering, credential editing prompts, and temporary credential reveal;
 - `Entry`: represents a credential using secure storage for service, username, and password;
-- `Vault`: stores credentials, exposes read-only access for UI rendering, and converts between objects and serialized text;
+- `Vault`: stores credentials, exposes accessors and edit operations for selected entries, and converts between objects and serialized text;
 - `Crypto`: derives the key, encrypts, and decrypts;
 - `FileManeger`: reads and writes the vault's binary format;
 - `PasswordPolicy`: validates the master password when creating a new vault;

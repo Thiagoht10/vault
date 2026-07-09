@@ -23,6 +23,8 @@ public:
     size_t          size(void) const;
     bool            isValidIndex(size_t index) const;
     const Entry&    getEntry(size_t index) const;
+    bool            editPassword(size_t index, SecureBuffer password);
+    bool            editUsername(size_t index, SecureBuffer username);
 };
 
 #endif

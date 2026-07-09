@@ -130,4 +130,23 @@ const Entry&  Vault::getEntry(size_t index) const
     if (!isValidIndex(index))
         throw std::runtime_error("\ninvalid index\n");
     return _entry[index];
+    
+}
+
+bool    Vault::editPassword(size_t index, SecureBuffer password)
+{
+    if (index >= size())
+        return false;
+
+    _entry[index].setPassword(password.data(), password.size());
+    return true;
+}
+
+bool    Vault::editUsername(size_t index, SecureBuffer username)
+{
+    if (index >= size())
+        return false;
+
+    _entry[index].setUsername(username.data(), username.size());
+    return true;
 }
