@@ -7,6 +7,7 @@
 #include <sstream>
 #include <filesystem>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include "Crypto.hpp"
 
 static const std::size_t MAX_VAULT_SIZE = 10 * 1024 * 1024;
@@ -40,6 +41,7 @@ public:
     void            setPath(const std::string pathname);
     void            openLockFile(void);
     void            closeLockFile(void);
+    bool            checkPermissionFile(void) const;
 };
 
 

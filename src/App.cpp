@@ -25,43 +25,47 @@ void    App::parseArgs(int argc, char *argv[])
 IUserInterface::InputResult App::add(void)
 {
     Entry                       entry;
-    IUserInterface::InputResult result;
+    IUserInterface::InputOutcome outcome;
 
-    result = _ui.askNewEntry(entry);
-    if (result != IUserInterface::INPUT_OK)
-        return result;
+    outcome = _ui.askNewEntry(entry);
+    receiveMessage(outcome.message);
+    if (outcome.result != IUserInterface::INPUT_OK)
+        return outcome.result;
     
     _vault.addEntry(std::move(entry));
+    _message.set("credential added", Message::SUCCESS);
     return IUserInterface::INPUT_OK;
 }
 
 IUserInterface::InputResult App::show(void)
 {
     size_t                      index;
-    IUserInterface::InputResult result;
+    IUserInterface::InputOutcome outcome;
 
     if (_vault.size() == 0)
     {
-        _message = "vault is empty";
+        _message.set("vault is empty", Message::INFO);
         return IUserInterface::INPUT_OK;
     }
     _ui.showEntryList(_vault);
-    result = _ui.askEntryIndex(index, _vault);
-    if (result != IUserInterface::INPUT_OK)
-        return result;
+    outcome = _ui.askEntryIndex(index, _vault);
+    receiveMessage(outcome.message);
+    if (outcome.result != IUserInterface::INPUT_OK)
+        return outcome.result;
     return _ui.showEntryTemporarily(_vault.getEntry(index));
 }
 
 IUserInterface::InputResult App::del(void)
 {
     size_t                          index;
-    IUserInterface::InputResult     result;
+    IUserInterface::InputOutcome    outcome;
     IUserInterface::ConfirmationInput confirmation;
 
     _ui.showEntryList(_vault);
-    result = _ui.askEntryIndex(index, _vault);
-    if (result != IUserInterface::INPUT_OK)
-        return result;
+    outcome = _ui.askEntryIndex(index, _vault);
+    receiveMessage(outcome.message);
+    if (outcome.result != IUserInterface::INPUT_OK)
+        return outcome.result;
     
     confirmation = _ui.askConfirmation(_vault.getEntry(index));
     if (confirmation.result != IUserInterface::INPUT_OK)
@@ -70,10 +74,10 @@ IUserInterface::InputResult App::del(void)
     {
         if (!_vault.removeEntry(index))
         {
-            _message = "invalid input";
+            _message.set("invalid input", Message::ERROR);
             return IUserInterface::INPUT_INVALID;
         }
-        _message = "credential removed";
+        _message.set("credential removed", Message::SUCCESS);
     }
     return IUserInterface::INPUT_OK;
 }
@@ -81,27 +85,79 @@ IUserInterface::InputResult App::del(void)
 IUserInterface::InputResult App::edit(void)
 {
     size_t                              index;
-    IUserInterface::InputResult         result;
+    IUserInterface::InputOutcome        outcome;
     SecureBuffer                        password;
     SecureBuffer                        username;
 
     _ui.showEntryList(_vault);
-    result = _ui.askEntryIndex(index, _vault);
-    if (result != IUserInterface::INPUT_OK)
-        return result;
+    outcome = _ui.askEntryIndex(index, _vault);
+    receiveMessage(outcome.message);
+    if (outcome.result != IUserInterface::INPUT_OK)
+        return outcome.result;
 
-    result = _ui.askEditEntry(password, username);
-    if (result != IUserInterface::INPUT_OK)
-        return result;
+    outcome = _ui.askEditEntry(password, username);
+    receiveMessage(outcome.message);
+    if (outcome.result != IUserInterface::INPUT_OK)
+        return outcome.result;
 
-    if (!_vault.editUsername(index, std::move(username)))
-        return IUserInterface::INPUT_INVALID;
+    if (!username.empty())
+    {
+        if (!_vault.editUsername(index, std::move(username)))
+            return IUserInterface::INPUT_INVALID;
+    }
 
     if (!_vault.editPassword(index, std::move(password)))
         return IUserInterface::INPUT_INVALID;
 
-    _message = "credential updated";
+    _message.set("credential updated", Message::SUCCESS);
+    password.erase();
+    username.erase();
     return IUserInterface::INPUT_OK;
+}
+
+IUserInterface::InputResult App::changeMasterPassword(void)
+{
+    SecureBuffer    password;
+    SecureBuffer    confirmPassword;
+    IUserInterface::InputResult result;
+
+    result = _ui.askPassWord(password, "put your actual master password");
+    if (result != IUserInterface::INPUT_OK)
+        return result;
+
+    if (password != _masterPassword)
+    {
+        _message.set("wrong password", Message::ERROR);
+        return IUserInterface::INPUT_INVALID;
+    }
+    
+    result = _ui.askPassWord(password, "put your new master password");
+    if (result != IUserInterface::INPUT_OK)
+        return result;
+
+    if (!checkPolicyPassword(password))
+        return IUserInterface::INPUT_INVALID;
+    
+    result = _ui.askPassWord(confirmPassword, "confirm your new password");
+    if (result != IUserInterface::INPUT_OK)
+        return result;
+
+    if (password != confirmPassword)
+    {
+        _message.set("passwords do not match", Message::ERROR);
+        return IUserInterface::INPUT_INVALID;
+    }
+
+    _masterPassword = std::move(password);
+    _message.set("master password updated", Message::SUCCESS);
+    confirmPassword.erase();
+    return IUserInterface::INPUT_OK;
+}
+
+void    App::receiveMessage(const Message& message)
+{
+    if (!message.empty())
+        _message = message;
 }
 
 bool    App::checkMatchPassword(void)
@@ -169,35 +225,34 @@ bool    App::openVault(EncryptedData& data, SecureBuffer& plaintext)
     IUserInterface::InputResult passwordInput;
     
     bool    unlocked = false;
-        data = _fileManeger.readEncrypted();
+    data = _fileManeger.readEncrypted();
 
-        for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
+    for (size_t attempt = 0; attempt < 3 && !unlocked; attempt++)
+    {
+        _masterPassword.erase();
+        plaintext.erase();
+        passwordInput = _ui.askPassWord(_masterPassword,
+                "please, put your password");
+        if (passwordInput == IUserInterface::INPUT_INTERRUPTED
+                || shouldStop())
+            return false;
+        if (_crypto.decrypt(plaintext, data, _masterPassword))
         {
-            _masterPassword.erase();
+            _vault.deserialize(plaintext);
             plaintext.erase();
-
-            passwordInput = _ui.askPassWord(_masterPassword,
-                    "please, put your password");
-            if(passwordInput == IUserInterface::INPUT_INTERRUPTED
-                    || shouldStop())
-                return false;
-            if(_crypto.decrypt(plaintext, data, _masterPassword))
-            {
-                _vault.deserialize(plaintext);
-                plaintext.erase();
-                unlocked = true;
-            }
-            else
-            {
-                if (attempt + 1 == 3)
-                {
-                    _masterPassword.erase();
-                    _checkPassword.erase();
-                    throw std::runtime_error("wrong password or corrupted file");
-                }
-                _ui.showError("wrong password, try again");
-            }
+            unlocked = true;
         }
+        else
+        {
+            if (attempt + 1 == 3)
+            {
+                _masterPassword.erase();
+                _checkPassword.erase();
+                throw std::runtime_error("wrong password or corrupted file");
+            }
+            _ui.showError("wrong password, try again");
+        }
+    }
     return true;
 }
 
@@ -266,7 +321,7 @@ void    App::run(int argc, char *argv[])
     {
         actionResult = IUserInterface::INPUT_OK;
         input = _ui.askMainMenuAction(_message);
-        _message.erase();
+        _message.clear();
         if (input.result == IUserInterface::INPUT_INTERRUPTED)
             break;
         if(input.action == IUserInterface::ACTION_ADD)
@@ -277,17 +332,17 @@ void    App::run(int argc, char *argv[])
             actionResult = del();
         else if (input.action == IUserInterface::ACTION_EDIT)
             actionResult = edit();
+        else if(input.action == IUserInterface::ACTION_CHANGE_PASSWORD)
+            actionResult = changeMasterPassword();
         else if(input.action == IUserInterface::ACTION_EXIT)
             break;
         else
         {
             if(!shouldStop())
-                _message = "option not found";
+                _message.set("option not found", Message::ERROR);
         }
         if (actionResult == IUserInterface::INPUT_INTERRUPTED)
             break;
-        if (actionResult == IUserInterface::INPUT_INVALID)
-            _message = "invalid input";
     }
     _vault.serialize(plaintext);
     data = _crypto.encrypt(plaintext, _masterPassword);

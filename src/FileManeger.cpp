@@ -211,6 +211,9 @@ void	FileManeger::inOpen(void)
 	_fd = open(_path.c_str(), O_RDONLY);
 	if (_fd == -1)
 		throw std::runtime_error("could not open file");
+	
+	if (!checkPermissionFile())
+		throw std::runtime_error("unsafe permission file");
 }
 
 void	FileManeger::outOpen(std::string& path)
@@ -262,4 +265,17 @@ void	FileManeger::closeLockFile(void)
 		close(_lockFd);
 		_lockFd = -1;
 	}
+}
+
+bool	FileManeger::checkPermissionFile(void) const
+{
+	struct stat	sb;
+
+	if (fstat(_fd, &sb) != -1)
+	{
+		if ((sb.st_mode & 0777) != 0600)
+			return false;
+		return true;
+	}
+	return false;
 }

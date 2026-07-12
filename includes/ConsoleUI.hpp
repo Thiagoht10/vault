@@ -2,6 +2,7 @@
 #define CONSOLE_U_I_HPP
 
 #include "IUserInterface.hpp"
+#include "Message.hpp"
 #include "TerminalEchoGuard.hpp"
 #include <iostream>
 #include <string>
@@ -19,19 +20,19 @@ public:
     bool        readHiddenLine(SecureBuffer& input) const;
     bool        waitEnterOrTimeout(int secunds) const;
 
-    MenuInput   askMainMenuAction(std::string& msg);
+    MenuInput   askMainMenuAction(const Message& message);
     InputResult askPassWord(SecureBuffer& pass, std::string prompt);
-    InputResult askEntryIndex(size_t& index, const Vault& vault) const;
-    InputResult askNewEntry(Entry& entry);
+    InputOutcome askEntryIndex(size_t& index, const Vault& vault) const;
+    InputOutcome askNewEntry(Entry& entry);
     ConfirmationInput   askConfirmation(const Entry& entry) const;
-    InputResult askEditEntry(SecureBuffer& pass, SecureBuffer& usr);
+    InputOutcome askEditEntry(SecureBuffer& pass, SecureBuffer& usr);
 
     void        showEntryList(const Vault& valt) const;
     void        showEntryDetais(const Entry& entry) const;
     InputResult showPasswordTemporarily(const Entry& entry) const;
     InputResult showEntryTemporarily(const Entry& entry) const;
     void        showError(std::string error) const;
-    void        showMessage(std::string msg) const;
+    void        showMessage(const Message& message) const;
 };
 
 

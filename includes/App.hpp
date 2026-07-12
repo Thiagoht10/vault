@@ -8,6 +8,7 @@
 #include "Vault.hpp"
 #include "TerminalEchoGuard.hpp"
 #include "IUserInterface.hpp"
+#include "Message.hpp"
 #include "PasswordPolicy.hpp"
 #include <cstring>
 #include <signal.h>
@@ -24,13 +25,15 @@ private:
     Vault           _vault;
     FileManeger     _fileManeger;
     PasswordPolicy  _policy;
-    std::string     _message;
+    Message         _message;
 
     void parseArgs(int argc, char *argv[]);
     IUserInterface::InputResult add(void);
     IUserInterface::InputResult show(void);
     IUserInterface::InputResult del(void);
     IUserInterface::InputResult edit(void);
+    IUserInterface::InputResult changeMasterPassword(void);
+    void receiveMessage(const Message& message);
     bool checkMatchPassword(void);
     bool checkPolicyPassword(const SecureBuffer &pass) const;
 

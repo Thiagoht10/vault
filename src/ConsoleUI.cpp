@@ -2,7 +2,11 @@
 
 #include <unistd.h>
 
+#define GREEN "\033[32m"
+#define YELLOW "\033[33m"
 #define RED "\033[31m"
+#define ITALIC "\033[3m"
+#define	BOLD "\033[1m"
 #define RESET "\033[0m"
 
 namespace
@@ -27,20 +31,26 @@ namespace
 IUserInterface::InputResult ConsoleUI::readHiddenInput(SecureBuffer& pass,
 		std::string prompt)
 {
+	SecureBuffer	password;
 	std::cout << prompt << "\n" << "> ";
 	std::cout.flush();
 
-	if (!readHiddenLine(pass))
+	if (!readHiddenLine(password))
 	{
 		std::cerr << "\n";
 		return INPUT_INTERRUPTED;
 	}
+	
+	if (password == "/cancel")
+		return INPUT_CANCEL;
+	
+	pass = std::move(password);
 	return INPUT_OK;
 }
 
 void    ConsoleUI::clearTerminal(void) const
 {
-	std::cout << "\033[2J" << "\033[3J" << "\033[2H";
+	std::cout << "\033[2J" << "\033[3J" << "\033[H";
 	std::cout.flush();
 }
 
@@ -162,20 +172,22 @@ bool    ConsoleUI::waitEnterOrTimeout(int secunds) const
 	return false;
 }
 
-IUserInterface::MenuInput   ConsoleUI::askMainMenuAction(std::string& msg)
+IUserInterface::MenuInput   ConsoleUI::askMainMenuAction(
+		const Message& message)
 {
 	std::string option;
 	MenuInput   input;
 
 	clearTerminal();
-	if(!msg.empty())
-		showMessage(msg);
+	if(!message.empty())
+		showMessage(message);
 	std::cout << "------------------" << std::endl;
 	std::cout << "\nselect one option\n" << std::endl;
 	std::cout << "1. add" << std::endl;
 	std::cout << "2. show" << std::endl;
 	std::cout << "3. delete" << std::endl;
 	std::cout << "4. edit" << std::endl;
+	std::cout << "5. change master password" << std::endl;
 	std::cout << "0. exit\n";
 	input.result = INPUT_OK;
 	input.action = ACTION_INVALID;
@@ -189,15 +201,35 @@ IUserInterface::MenuInput   ConsoleUI::askMainMenuAction(std::string& msg)
 	}
 
 	if (option == "0")
+	{
+		clearTerminal();
 		input.action = ACTION_EXIT;
+	}
 	else if (option == "1")
+	{
+		clearTerminal();
 		input.action = ACTION_ADD;
+	}
 	else if (option == "2")
+	{
+		clearTerminal();
 		input.action = ACTION_SHOW;
+	}
 	else if (option == "3")
+	{
+		clearTerminal();
 		input.action = ACTION_DELETE;
+	}
 	else if (option == "4")
+	{
+		clearTerminal();
 		input.action = ACTION_EDIT;
+	}
+	else if (option == "5")
+	{
+		clearTerminal();
+		input.action = ACTION_CHANGE_PASSWORD;
+	}
 	return input;
 }
 
@@ -282,42 +314,58 @@ IUserInterface::InputResult ConsoleUI::showEntryTemporarily(const Entry& entry) 
 	return result;
 }
 
-IUserInterface::InputResult ConsoleUI::askEntryIndex(size_t& index,
+IUserInterface::InputOutcome ConsoleUI::askEntryIndex(size_t& index,
 		const Vault& vault) const
 {
 	std::stringstream   ss;
 	std::string         input;
+	InputOutcome        outcome;
+
+	outcome.result = INPUT_OK;
 
 	std::cout << "\n" << "------------------" << "\n" << std::endl;
 	std::cout << "please, select an index" << std::endl;
-	std::cout << "type /cancel to cancel\n> ";
+	std::cout << ITALIC << "type /cancel to cancel" << RESET << "\n> ";
 
 	if (!getLine(input))
 	{
 		std::cerr << "\n";
-		return INPUT_INTERRUPTED;
+		outcome.result = INPUT_INTERRUPTED;
+		return outcome;
 	}
 
 	if (input.empty())
-		return INPUT_INVALID;
+	{
+		outcome.result = INPUT_INVALID;
+		outcome.message.set("index cannot be empty", Message::ERROR);
+		return outcome;
+	}
 
 	if (input == "/cancel")
-		return INPUT_CANCEL;
+	{
+		outcome.result = INPUT_CANCEL;
+		return outcome;
+	}
 	
 	for (size_t i = 0; input[i]; i++)
 	{
 		if (input[i] < '0' || input[i] > '9')
-			return INPUT_INVALID;
+		{
+			outcome.result = INPUT_INVALID;
+			outcome.message.set("index must be a number", Message::ERROR);
+			return outcome;
+		}
 	}
 	ss << input;
 	ss >> index;
 
 	if (!vault.isValidIndex(index))
 	{
-		showError("invalid index");
-		return INPUT_INVALID;
+		outcome.result = INPUT_INVALID;
+		outcome.message.set("index is out of range", Message::ERROR);
+		return outcome;
 	}
-	return INPUT_OK;
+	return outcome;
 }
 
 void    ConsoleUI::showError(std::string error) const
@@ -326,15 +374,18 @@ void    ConsoleUI::showError(std::string error) const
 }
 
 
-IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
+IUserInterface::InputOutcome ConsoleUI::askNewEntry(Entry& entry)
 {
 	SecureBuffer    password;
 	SecureBuffer    checkPass;
 	SecureString    tmp;
+	InputResult     result;
+	InputOutcome    outcome;
 
-	std::cout << "\n" << "------------------" << "\n" << std::endl;
+	outcome.result = INPUT_OK;
+
 	std::cout << "please, insert datas:" << std::endl;
-	std::cout << "type /cancel to cancel\n" << std::endl;
+	std::cout << ITALIC << "type /cancel to cancel\n" << RESET<< std::endl;
 
 	while(1)
 	{
@@ -344,7 +395,8 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 		if (!tmp.readBytes())
 		{
 			std::cerr << "\n";
-			return INPUT_INTERRUPTED;
+			outcome.result = INPUT_INTERRUPTED;
+			return outcome;
 		}
 		if(tmp.empty())
 		{
@@ -352,7 +404,10 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 			continue ;
 		}
 		if(tmp == "/cancel")
-			return INPUT_CANCEL;
+		{
+			outcome.result = INPUT_CANCEL;
+			return outcome;
+		}
 
 		entry.setService(tmp.data(), tmp.size());
 		tmp.erase();
@@ -367,7 +422,8 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 		if (!tmp.readBytes())
 		{
 			std::cerr << "\n";
-			return INPUT_INTERRUPTED;
+			outcome.result = INPUT_INTERRUPTED;
+			return outcome;
 		}
 		if (tmp.empty())
 		{
@@ -375,7 +431,10 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 			continue ;
 		}
 		if(tmp == "/cancel")
-			return INPUT_CANCEL;
+		{
+			outcome.result = INPUT_CANCEL;
+			return outcome;
+		}
 
 		entry.setUsername(tmp.data(), tmp.size());
 		tmp.erase();
@@ -391,11 +450,12 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 			password.erase();
 			checkPass.erase();
 
-			if (readHiddenInput(password, "password:") == INPUT_INTERRUPTED)
-				return INPUT_INTERRUPTED;
-			
-			if(password == "/cancel")
-				return INPUT_CANCEL;
+			result = readHiddenInput(password, "password:");
+			if (result != INPUT_OK)
+			{
+				outcome.result = result;
+				return outcome;
+			}
 
 			if (password.empty())
 			{
@@ -403,12 +463,13 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 				continue;
 			}
 
-			if (readHiddenInput(checkPass, "\nplease, confirm your password")
-					== INPUT_INTERRUPTED)
-				return INPUT_INTERRUPTED;
-			
-			if(checkPass == "/cancel")
-				return INPUT_CANCEL;
+			result = readHiddenInput(checkPass,
+					"\nplease, confirm your password");
+			if (result != INPUT_OK)
+			{
+				outcome.result = result;
+				return outcome;
+			}
 
 			if(password == checkPass)
 				match = true;
@@ -421,14 +482,19 @@ IUserInterface::InputResult ConsoleUI::askNewEntry(Entry& entry)
 				checkPass.erase();
 			}
 			if (attempt + 1 == 3 && !match)
-				return INPUT_INVALID;
+			{
+				outcome.result = INPUT_INVALID;
+				outcome.message.set("password confirmation failed",
+						Message::ERROR);
+				return outcome;
+			}
 		}
 		entry.setPassword(password.data(), password.size());
 		password.erase();
 		checkPass.erase();
 		break;
 	}
-	return INPUT_OK;
+	return outcome;
 }
 
 IUserInterface::ConfirmationInput ConsoleUI::askConfirmation(const Entry& entry) const
@@ -438,8 +504,9 @@ IUserInterface::ConfirmationInput ConsoleUI::askConfirmation(const Entry& entry)
 
 	input.result = INPUT_OK;
 	input.confirmed = false;
-	std::cout << "\nare you sure you want to delete this credential?\n";
-	std::cout << "service: " << entry.getService() << std::endl;
+	std::cout << "\nare you sure you want to delete this credential?\n\n";
+	std::cout << BOLD << "service: " << entry.getService() << RESET << std::endl;
+	std::cout << BOLD << "username: " << entry.getUsername() << RESET << std::endl;
 	std::cout << "\nY to yes | N to not\n" << std::endl;
 
 	while (option != "N" && option != "n" && option != "Y" && option != "y")
@@ -462,25 +529,45 @@ IUserInterface::ConfirmationInput ConsoleUI::askConfirmation(const Entry& entry)
 	return input;
 }
 
-void    ConsoleUI::showMessage(std::string msg) const
+void    ConsoleUI::showMessage(const Message& message) const
 {
-	std::cout << "\n" << msg << "\n" << std::endl;
+	const char* color = RESET;
+
+	if (message.type() == Message::SUCCESS)
+		color = GREEN;
+	else if (message.type() == Message::INFO)
+		color = YELLOW;
+	else if (message.type() == Message::ERROR)
+		color = RED;
+	std::cout << color << message.text() << RESET << "\n" << std::endl;
 }
 
 
-IUserInterface::InputResult ConsoleUI::askEditEntry(SecureBuffer& pass,
+IUserInterface::InputOutcome ConsoleUI::askEditEntry(SecureBuffer& pass,
 		SecureBuffer& usr)
 {
 	SecureBuffer    password;
 	SecureBuffer    confirmPassword;
+	SecureBuffer	username;
 	bool            match;
+	IUserInterface::InputResult	result;
+	InputOutcome    outcome;
 
-	std::cout << "put your new username\n> ";
+	outcome.result = INPUT_OK;
+
+	std::cout << "\nput your new username\n";
+	std::cout << ITALIC << "put enter for use the same" << RESET << "\n> ";
 	std::cout.flush();
-	if (!usr.readBytes())
+	if (!username.readBytes())
 	{
 		std::cerr << "\n";
-		return INPUT_INTERRUPTED;
+		outcome.result = INPUT_INTERRUPTED;
+		return outcome;
+	}
+	if (username == "/cancel")
+	{
+		outcome.result = INPUT_CANCEL;
+		return outcome;
 	}
 
 	match = false;
@@ -489,11 +576,12 @@ IUserInterface::InputResult ConsoleUI::askEditEntry(SecureBuffer& pass,
 		password.erase();
 		confirmPassword.erase();
 
-		if (readHiddenInput(password, "put your new password") == INPUT_INTERRUPTED)
-			return INPUT_INTERRUPTED;
-
-		if(password == "/cancel")
-			return INPUT_CANCEL;
+		result = readHiddenInput(password, "put your new password");
+		if (result != INPUT_OK)
+		{
+			outcome.result = result;
+			return outcome;
+		}
 		
 		if (password.empty())
 		{
@@ -501,8 +589,12 @@ IUserInterface::InputResult ConsoleUI::askEditEntry(SecureBuffer& pass,
 			continue;
 		}
 
-		if (readHiddenInput(confirmPassword, "confirm your new password") == INPUT_INTERRUPTED)
-			return INPUT_INTERRUPTED;
+		result = readHiddenInput(confirmPassword, "confirm your new password");
+		if (result != INPUT_OK)
+		{
+			outcome.result = result;
+			return outcome;
+		}
 
 		if(password == confirmPassword)
 			match = true;
@@ -516,9 +608,15 @@ IUserInterface::InputResult ConsoleUI::askEditEntry(SecureBuffer& pass,
 		}
 
 		if (attempt + 1 == 3 && !match)
-			return INPUT_INVALID;
+		{
+			outcome.result = INPUT_INVALID;
+			outcome.message.set("password confirmation failed",
+					Message::ERROR);
+			return outcome;
+		}
 	}
+	usr = std::move(username);
 	pass = std::move(password);
 	confirmPassword.erase();
-	return INPUT_OK;
+	return outcome;
 }
