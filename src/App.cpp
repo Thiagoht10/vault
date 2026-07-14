@@ -149,7 +149,11 @@ IUserInterface::InputResult App::changeMasterPassword(void)
     }
 
     _masterPassword = std::move(password);
-    _message.set("master password updated", Message::SUCCESS);
+    if (_message.empty())
+        _message.set("master password updated", Message::SUCCESS);
+    else
+        _message.set("master password updated\n" + _message.text(),
+                Message::INFO);
     confirmPassword.erase();
     return IUserInterface::INPUT_OK;
 }
@@ -168,14 +172,18 @@ bool    App::checkMatchPassword(void)
     return true;
 }
 
-bool    App::checkPolicyPassword(const SecureBuffer& pass) const
+bool    App::checkPolicyPassword(const SecureBuffer& pass)
 {
     PasswordPolicy::Result result = _policy.checkPasswordPolity(pass);
+    PasswordPolicy::Warnings warnings;
+    std::string warning;
+
+    _message.clear();
 
     switch (result)
     {
         case PasswordPolicy::PW_OK:
-            return true;
+            break;
         case PasswordPolicy::PW_EMPTY:
             _ui.showError("password cannot be empty");
             return false;
@@ -188,14 +196,20 @@ bool    App::checkPolicyPassword(const SecureBuffer& pass) const
         case PasswordPolicy::PW_TOO_LONG:
             _ui.showError("password must be at most 64 characters");
             return false;
-        case PasswordPolicy::PW_REPEAT_CHAR:
-            _ui.showError("password cannot contain 3 repeated characters in a row");
-            return false;
-        case PasswordPolicy::PW_SEQUENCE_CHAR:
-            _ui.showError("password cannot contain a 4-character ascending or descending sequence");
-            return false;
     }
-    return false;
+
+    warnings = _policy.checkPasswordWarnings(pass);
+    if (warnings.repeatedChars)
+        warning = "warning: password contains 3 repeated characters in a row";
+    if (warnings.sequenceChars)
+    {
+        if (!warning.empty())
+            warning += "\n";
+        warning += "warning: password contains a 4-character ascending or descending sequence";
+    }
+    if (!warning.empty())
+        _message.set(warning, Message::INFO);
+    return true;
 }
 
 void    App::signalHandler(int sig)

@@ -29,13 +29,17 @@ PasswordPolicy::Result  PasswordPolicy::checkPasswordPolity(const
     if (pass.size() > 64)
         return PW_TOO_LONG;
 
-    if (!hasRepeatChars(pass, 3))
-        return PW_REPEAT_CHAR;
-
-    if (!hasSequenceChars(pass, 4))
-        return PW_SEQUENCE_CHAR;
-
     return PW_OK;
+}
+
+PasswordPolicy::Warnings PasswordPolicy::checkPasswordWarnings(const
+        SecureBuffer& pass) const
+{
+    Warnings warnings;
+
+    warnings.repeatedChars = !hasRepeatChars(pass, 3);
+    warnings.sequenceChars = !hasSequenceChars(pass, 4);
+    return warnings;
 }
 
 bool    PasswordPolicy::checkCommonPassword(const SecureBuffer& pass) const
@@ -80,19 +84,15 @@ bool    PasswordPolicy::hasSequenceChars(const SecureBuffer& pass, size_t limit)
     
     for (size_t i = 1; i < pass.size(); i++)
     {
-        if (pass.data()[i] > pass.data()[i - 1])
-        {
-            if (pass.data()[i] - pass.data()[i - 1] == 1)
-                countSeqPOS++;
-        }
+        if (pass.data()[i] > pass.data()[i - 1]
+                && pass.data()[i] - pass.data()[i - 1] == 1)
+            countSeqPOS++;
         else
             countSeqPOS = 1;
     
-        if (pass.data()[i] < pass.data()[i - 1])
-        {
-            if (pass.data()[i - 1] - pass.data()[i] == 1)
-                countSeqNEG++;
-        }
+        if (pass.data()[i] < pass.data()[i - 1]
+                && pass.data()[i - 1] - pass.data()[i] == 1)
+            countSeqNEG++;
         else
             countSeqNEG = 1;
         

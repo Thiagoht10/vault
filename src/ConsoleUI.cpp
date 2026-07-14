@@ -373,7 +373,6 @@ void    ConsoleUI::showError(std::string error) const
 	std::cerr << "\n" << RED << error << RESET << "\n" << std::endl;
 }
 
-
 IUserInterface::InputOutcome ConsoleUI::askNewEntry(Entry& entry)
 {
 	SecureBuffer    password;

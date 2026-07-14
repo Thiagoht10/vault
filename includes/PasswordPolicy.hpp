@@ -11,21 +11,26 @@ private:
     bool        hasSequenceChars(const SecureBuffer& pass, size_t limit) const;
 
 public:
+    struct Warnings
+    {
+        bool    repeatedChars;
+        bool    sequenceChars;
+    };
+
     enum    Result
     {
         PW_OK,
         PW_EMPTY,
         PW_TOO_LONG,
         PW_TOO_SHORT,
-        PW_TOO_COMMON,
-        PW_REPEAT_CHAR,
-        PW_SEQUENCE_CHAR
+        PW_TOO_COMMON
     };
 
     PasswordPolicy() = default;
     ~PasswordPolicy() = default;
     
     Result      checkPasswordPolity(const SecureBuffer& pass) const;
+    Warnings    checkPasswordWarnings(const SecureBuffer& pass) const;
 };
 
 

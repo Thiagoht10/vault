@@ -19,7 +19,8 @@ A terminal-based password manager written in C++. Credentials are kept in memory
 - reject truncated or malformed encrypted vault files before using incomplete metadata;
 - reject serialized plaintext data that does not match the expected format;
 - prevent two cooperative `vault` processes from opening the same vault file at the same time;
-- enforce a basic master-password policy when creating a new vault;
+- enforce a basic master-password policy when creating a new vault or changing its master password;
+- show non-blocking yellow warnings for repeated characters and ascending or descending sequences in a master password;
 - hide the master password while it is being entered;
 - require password confirmation when creating a new vault;
 - hide and confirm credential passwords while they are being entered;
@@ -70,6 +71,7 @@ The program prompts for the master password without displaying it while it is be
 2. show
 3. delete
 4. edit
+5. change master password
 0. exit
 ```
 
@@ -79,9 +81,11 @@ Option `3` lists the available indexes and service names, then asks which entry 
 
 Option `4` lists the available indexes and service names, asks which entry should be edited, then asks for a new username and a new password. The new password is hidden while typed and must be confirmed before the credential is updated. Typing `/cancel` at the index or new-password prompt returns to the main menu without saving the edit.
 
+Option `5` asks for the current master password, validates the new master password with the same policy used during vault creation, and requires confirmation before updating it.
+
 If the specified file already exists, it is read and decrypted with the master password. The program allows up to three password attempts. A different password, or changes to the encrypted bytes, causes retry messages first and then the `wrong password or corrupted file` error after the final failed attempt.
 
-If the file does not exist, a new vault is created after a confirmed master password is accepted. The master password must be between 15 and 64 bytes and must not match the small built-in list of common passwords. The password and confirmation must match. Invalid input can be retried up to three times; after the final failed attempt, the program exits with `bad password`.
+If the file does not exist, a new vault is created after a confirmed master password is accepted. The master password must be between 15 and 64 bytes and must not match the small built-in list of common passwords. The password and confirmation must match. Invalid input can be retried up to three times; after the final failed attempt, the program exits with `bad password`. Pattern warnings do not consume an attempt or prevent the password from being accepted.
 
 If terminal input is interrupted, the current unfinished input operation is cancelled. A partially filled new credential is not added to the vault. If a previous action has already completed, the application leaves the main loop and persists the current vault state before exiting.
 
@@ -170,7 +174,9 @@ Sensitive buffer comparisons use `sodium_memcmp()` through `SecureBuffer::operat
 
 ### Master password policy
 
-`PasswordPolicy` is applied when creating a new vault. It rejects empty passwords, passwords shorter than 15 bytes, passwords longer than 64 bytes, passwords that exactly match a small built-in list of common weak values such as `password`, `123456`, `qwerty`, `admin`, and `senha123`, passwords with 3 repeated characters in a row, and passwords with a 4-character ascending or descending sequence.
+`PasswordPolicy` is applied when creating a new vault and when changing the master password. It rejects empty passwords, passwords shorter than 15 bytes, passwords longer than 64 bytes, and passwords that exactly match a small built-in list of common weak values such as `password`, `123456`, `qwerty`, `admin`, and `senha123`.
+
+Passwords with 3 repeated characters in a row or a 4-character ascending or descending sequence are still accepted. After the terminal is cleared, the application displays the applicable warnings in yellow above the main menu so they remain visible instead of being erased by the menu redraw. If the master password was changed, the update confirmation and any warnings are displayed together.
 
 The policy is intentionally basic. It does not require character-composition rules such as uppercase letters, numbers, or symbols, and it does not estimate entropy or check leaked-password databases. Existing vaults are still opened by authentication against the encrypted file, and stored credential passwords are not forced through this master-password policy.
 
@@ -236,7 +242,7 @@ The move constructor and move assignment operator are `noexcept`, allowing the v
 - `Vault`: stores credentials, exposes accessors and edit operations for selected entries, and converts between objects and serialized text;
 - `Crypto`: derives the key, encrypts, and decrypts;
 - `FileManeger`: reads and writes the vault's binary format;
-- `PasswordPolicy`: validates the master password when creating a new vault;
+- `PasswordPolicy`: validates the master password when creating a new vault or changing the current master password, and reports non-blocking pattern warnings;
 - `SecureBuffer`: owns sensitive byte buffers and erases them with `sodium_memzero()`;
 - `SecureString`: stores text fields on top of `SecureBuffer`;
 - `TerminalEchoGuard`: temporarily disables terminal echo and restores its configuration through RAII.

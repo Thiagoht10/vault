@@ -35,7 +35,7 @@ private:
     IUserInterface::InputResult changeMasterPassword(void);
     void receiveMessage(const Message& message);
     bool checkMatchPassword(void);
-    bool checkPolicyPassword(const SecureBuffer &pass) const;
+    bool checkPolicyPassword(const SecureBuffer &pass);
 
     static void signalHandler(int sig);
     void    setupSignal(void);
